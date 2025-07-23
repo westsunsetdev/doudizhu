@@ -28,4 +28,4 @@ function dealCards(deck, playerCount) {
   return hands;
 }
 
-module.exports = { shuffleDeck, dealCards };Cards };
+module.exports = { shuffleDeck, dealCards };
