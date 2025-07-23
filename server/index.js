@@ -1,10 +1,5 @@
-const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { shuffleDeck, dealCards } = require('./game/deck');
@@ -15,7 +10,7 @@ const io = new Server(server, {
   cors: { origin: '*' }
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 let gameState = {
   players: {}, // socketId -> { name, hand }
@@ -66,6 +61,6 @@ io.on('connection', (socket) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
