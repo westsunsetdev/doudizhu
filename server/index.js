@@ -18,6 +18,9 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3001;
 
+const ROOM_NAME = "The Pitstop";
+const MAX_PLAYERS = 3;
+
 let gameState = {
   players: {}, // socketId -> { name, hand }
   playerOrder: [],
@@ -30,17 +33,20 @@ io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   socket.on('joinGame', (playerName) => {
-    if (Object.keys(gameState.players).length >= 3) {
-      socket.emit('roomFull');
+    if (Object.keys(gameState.players).length >= MAX_PLAYERS) {
+      socket.emit('roomFull', { roomName: ROOM_NAME });
       return;
     }
 
     gameState.players[socket.id] = { name: playerName, hand: [] };
     gameState.playerOrder.push(socket.id);
 
-    io.emit('playerList', Object.values(gameState.players).map(p => p.name));
+    io.emit('playerList', {
+      players: Object.values(gameState.players).map(p => p.name),
+      roomName: ROOM_NAME
+    });
 
-    if (Object.keys(gameState.players).length === 3) {
+    if (Object.keys(gameState.players).length === MAX_PLAYERS) {
       startGame();
     }
   });

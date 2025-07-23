@@ -12,7 +12,7 @@ function App() {
   const [message, setMessage] = useState('');
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [playerList, setPlayerList] = useState([]);
-  const [roomId] = useState(Math.floor(Math.random() * 10000));
+  const [roomName, setRoomName] = useState('The Pitstop');
 
   useEffect(() => {
     socket.on('startGame', ({ hand, yourTurn }) => {
@@ -22,16 +22,17 @@ function App() {
 
     socket.on('gameMessage', setMessage);
 
-    socket.on('playerList', (players) => {
-      setPlayerList(players);
+    socket.on('playerList', (data) => {
+      setPlayerList(data.players);
+      setRoomName(data.roomName);
     });
 
     socket.on('gamePaused', (player) => {
       alert(`${player} disconnected. Game paused.`);
     });
 
-    socket.on('roomFull', () => {
-      alert('Room is full! Please try again later.');
+    socket.on('roomFull', (data) => {
+      alert(`${data.roomName} is currently full! Please try again later.`);
       setJoined(false);
     });
 
@@ -66,7 +67,7 @@ function App() {
           <div className="login-card">
             <h1 className="game-title">斗地主</h1>
             <h2 className="game-subtitle">Dou Dizhu</h2>
-            <p className="room-info">Room #{roomId}</p>
+            <p className="room-info">{roomName}</p>
             
             <div className="input-group">
               <input 
@@ -91,7 +92,7 @@ function App() {
       ) : (
         <div className="game-container">
           <header className="game-header">
-            <h1 className="game-title-small">斗地主 - Room #{roomId}</h1>
+            <h1 className="game-title-small">斗地主 - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
               {isMyTurn && <p className="turn-indicator">🎯 Your Turn!</p>}
