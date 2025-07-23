@@ -23,7 +23,8 @@ function App() {
     socket.on('gameMessage', setMessage);
 
     socket.on('playerList', (data) => {
-      setPlayerList(data.players);
+      console.log('Received player list:', data); // Debug log
+      setPlayerList(data.players || []);
       setRoomName(data.roomName);
     });
 

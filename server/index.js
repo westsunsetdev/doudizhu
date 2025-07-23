@@ -41,10 +41,12 @@ io.on('connection', (socket) => {
     gameState.players[socket.id] = { name: playerName, hand: [] };
     gameState.playerOrder.push(socket.id);
 
-    io.emit('playerList', {
+    // Send updated player list to all clients
+    const playerData = {
       players: Object.values(gameState.players).map(p => p.name),
       roomName: ROOM_NAME
-    });
+    };
+    io.emit('playerList', playerData);
 
     if (Object.keys(gameState.players).length === MAX_PLAYERS) {
       startGame();
