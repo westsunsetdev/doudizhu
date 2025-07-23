@@ -8,7 +8,7 @@ const socket = io(`${window.location.protocol}//${window.location.hostname}:3001
 function App() {
   const [name, setName] = useState('');
   const [hand, setHand] = useState([]);
-  const [joined, setJoined] = useState(false);
+  const [gamePhase, setGamePhase] = useState('LOGIN'); // LOGIN, LOBBY, PLAYING
   const [message, setMessage] = useState('');
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [playerList, setPlayerList] = useState([]);
@@ -18,6 +18,7 @@ function App() {
     socket.on('startGame', ({ hand, yourTurn }) => {
       setHand(hand);
       setIsMyTurn(yourTurn);
+      setGamePhase('PLAYING');
     });
 
     socket.on('gameMessage', setMessage);
@@ -34,7 +35,7 @@ function App() {
 
     socket.on('roomFull', (data) => {
       alert(`${data.roomName} is currently full! Please try again later.`);
-      setJoined(false);
+      setGamePhase('LOGIN');
     });
 
     return () => {
@@ -49,7 +50,7 @@ function App() {
   const joinGame = () => {
     if (name.trim()) {
       socket.emit('joinGame', name.trim());
-      setJoined(true);
+      setGamePhase('LOBBY');
     }
   };
 
@@ -63,7 +64,7 @@ function App() {
     <div className="app">
       <div className="background-pattern"></div>
       
-      {!joined ? (
+      {gamePhase === 'LOGIN' ? (
         <div className="login-container">
           <div className="login-card">
             <h1 className="game-title">斗地主</h1>
@@ -90,6 +91,40 @@ function App() {
             </div>
           </div>
         </div>
+      ) : gamePhase === 'LOBBY' ? (
+        <div className="game-container">
+          <header className="game-header">
+            <h1 className="game-title-small">斗地主 - {roomName}</h1>
+            <div className="game-status">
+              <p className="status-message">Waiting for players to join...</p>
+            </div>
+          </header>
+
+          <div className="players-section">
+            <h3>Players ({playerList.length}/3)</h3>
+            <div className="players-list">
+              {playerList.map((playerName, index) => (
+                <div key={index} className={`player-card ${playerName === name ? 'current-player' : ''}`}>
+                  <div className="player-avatar">
+                    {playerName.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="player-name">{playerName}</span>
+                  {playerName === name && <span className="you-label">(You)</span>}
+                </div>
+              ))}
+              {[...Array(3 - playerList.length)].map((_, index) => (
+                <div key={`waiting-${index}`} className="player-card waiting">
+                  <div className="player-avatar waiting-avatar">?</div>
+                  <span className="player-name">Waiting...</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="lobby-info">
+            <p>Game will start automatically when 3 players join!</p>
+          </div>
+        </div>
       ) : (
         <div className="game-container">
           <header className="game-header">
@@ -110,12 +145,6 @@ function App() {
                   </div>
                   <span className="player-name">{playerName}</span>
                   {playerName === name && <span className="you-label">(You)</span>}
-                </div>
-              ))}
-              {[...Array(3 - playerList.length)].map((_, index) => (
-                <div key={`waiting-${index}`} className="player-card waiting">
-                  <div className="player-avatar waiting-avatar">?</div>
-                  <span className="player-name">Waiting...</span>
                 </div>
               ))}
             </div>

@@ -244,6 +244,20 @@ body {
   font-style: italic;
 }
 
+.lobby-info {
+  text-align: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.lobby-info p {
+  color: #ffd700;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
 /* Hand Section */
 .hand-section {
   margin-bottom: 30px;
