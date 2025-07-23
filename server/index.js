@@ -33,6 +33,8 @@ io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   socket.on('joinGame', (playerName) => {
+    console.log(`${playerName} attempting to join. Current players: ${Object.keys(gameState.players).length}`);
+    
     if (Object.keys(gameState.players).length >= MAX_PLAYERS) {
       socket.emit('roomFull', { roomName: ROOM_NAME });
       return;
@@ -46,7 +48,13 @@ io.on('connection', (socket) => {
       players: Object.values(gameState.players).map(p => p.name),
       roomName: ROOM_NAME
     };
+    console.log('Sending player list:', playerData);
     io.emit('playerList', playerData);
+
+    // Also send specifically to the joining user after a small delay
+    setTimeout(() => {
+      socket.emit('playerList', playerData);
+    }, 100);
 
     if (Object.keys(gameState.players).length === MAX_PLAYERS) {
       startGame();

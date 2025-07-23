@@ -25,6 +25,7 @@ function App() {
 
     socket.on('playerList', (data) => {
       console.log('Received player list:', data); // Debug log
+      console.log('Current game phase:', gamePhase); // Debug log
       setPlayerList(data.players || []);
       setRoomName(data.roomName);
     });
