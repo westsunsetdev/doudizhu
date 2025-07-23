@@ -1,0 +1,16 @@
+{
+  "name": "doudizhu",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && node index.js",
+    "client": "cd client && npm install && npm start"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.0",
+    "express": "^5.1.0",
+    "react-scripts": "^5.0.1",
+    "socket.io": "^4.8.1"
+  }
+}
