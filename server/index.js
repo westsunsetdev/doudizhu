@@ -5,6 +5,12 @@ const { Server } = require('socket.io');
 const { shuffleDeck, dealCards } = require('./game/deck');
 
 const app = express();
+
+// Add a simple route handler for the root path
+app.get('/', (req, res) => {
+  res.send('Dou Dizhu Game Server is running. Connect via the client application.');
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' }
