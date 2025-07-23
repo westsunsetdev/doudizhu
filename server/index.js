@@ -43,18 +43,24 @@ io.on('connection', (socket) => {
     gameState.players[socket.id] = { name: playerName, hand: [] };
     gameState.playerOrder.push(socket.id);
 
+    console.log('Current game state after join:', {
+      playerCount: Object.keys(gameState.players).length,
+      players: Object.values(gameState.players).map(p => p.name)
+    });
+
     // Send updated player list to all clients
     const playerData = {
       players: Object.values(gameState.players).map(p => p.name),
       roomName: ROOM_NAME
     };
-    console.log('Sending player list:', playerData);
+    console.log('Broadcasting player list to all clients:', playerData);
     io.emit('playerList', playerData);
 
     // Also send specifically to the joining user after a small delay
     setTimeout(() => {
+      console.log('Sending delayed player list to joining user:', playerData);
       socket.emit('playerList', playerData);
-    }, 100);
+    }, 200);
 
     if (Object.keys(gameState.players).length === MAX_PLAYERS) {
       startGame();

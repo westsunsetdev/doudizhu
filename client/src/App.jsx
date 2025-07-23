@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import io from 'socket.io-client';
 import './App.css';
@@ -64,14 +63,14 @@ function App() {
   return (
     <div className="app">
       <div className="background-pattern"></div>
-      
+
       {gamePhase === 'LOGIN' ? (
         <div className="login-container">
           <div className="login-card">
             <h1 className="game-title">斗地主</h1>
             <h2 className="game-subtitle">Dou Dizhu</h2>
             <p className="room-info">{roomName}</p>
-            
+
             <div className="input-group">
               <input 
                 type="text"
@@ -103,6 +102,7 @@ function App() {
 
           <div className="players-section">
             <h3>Players ({playerList.length}/3)</h3>
+            {console.log('Rendering lobby with playerList:', playerList)}
             <div className="players-list">
               {playerList.map((playerName, index) => (
                 <div key={index} className={`player-card ${playerName === name ? 'current-player' : ''}`}>
