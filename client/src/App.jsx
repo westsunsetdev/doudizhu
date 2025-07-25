@@ -1,64 +1,67 @@
-import React, { useEffect, useState } from 'react';
-import io from 'socket.io-client';
-import './App.css';
+import React, { useEffect, useState } from "react";
+import io from "socket.io-client";
+import "./App.css";
 
-const socket = io(`${window.location.protocol}//${window.location.hostname}:3001`, {
-  transports: ['websocket', 'polling'],
-  forceNew: true
-});
+const socket = io( 'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
+  // `${window.location.protocol}//${window.location.hostname}:3001`,
+  {
+    transports: ["websocket", "polling"],
+    forceNew: true,
+  },
+);
 
 function App() {
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
   const [hand, setHand] = useState([]);
-  const [gamePhase, setGamePhase] = useState('LOGIN'); // LOGIN, LOBBY, PLAYING
-  const [message, setMessage] = useState('');
+  const [gamePhase, setGamePhase] = useState("LOGIN"); // LOGIN, LOBBY, PLAYING
+  const [message, setMessage] = useState("");
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [playerList, setPlayerList] = useState([]);
-  const [roomName, setRoomName] = useState('The Pitstop');
+  const [roomName, setRoomName] = useState("The Pitstop");
 
   useEffect(() => {
-    socket.on('startGame', ({ hand, yourTurn }) => {
+    socket.on("startGame", ({ hand, yourTurn }) => {
       setHand(hand);
       setIsMyTurn(yourTurn);
-      setGamePhase('PLAYING');
+      setGamePhase("PLAYING");
     });
 
-    socket.on('gameMessage', setMessage);
+    socket.on("gameMessage", setMessage);
 
-    socket.on('playerList', (data) => {
-      console.log('Received player list:', data); // Debug log
-      console.log('Current game phase:', gamePhase); // Debug log
+    socket.on("playerList", (data) => {
+      console.log("Received player list:", data); // Debug log
+      console.log("Current game phase:", gamePhase); // Debug log
       setPlayerList(data.players || []);
       setRoomName(data.roomName);
     });
 
-    socket.on('gamePaused', (player) => {
+    socket.on("gamePaused", (player) => {
       alert(`${player} disconnected. Game paused.`);
     });
 
-    socket.on('roomFull', (data) => {
+    socket.on("roomFull", (data) => {
       alert(`${data.roomName} is currently full! Please try again later.`);
-      setGamePhase('LOGIN');
+      setGamePhase("LOGIN");
     });
 
     return () => {
-      socket.off('startGame');
-      socket.off('gameMessage');
-      socket.off('playerList');
-      socket.off('gamePaused');
-      socket.off('roomFull');
+      socket.off("startGame");
+      socket.off("gameMessage");
+      socket.off("playerList");
+      socket.off("gamePaused");
+      socket.off("roomFull");
     };
   }, []);
 
   const joinGame = () => {
     if (name.trim()) {
-      socket.emit('joinGame', name.trim());
-      setGamePhase('LOBBY');
+      socket.emit("joinGame", name.trim());
+      setGamePhase("LOBBY");
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       joinGame();
     }
   };
@@ -67,7 +70,7 @@ function App() {
     <div className="app">
       <div className="background-pattern"></div>
 
-      {gamePhase === 'LOGIN' ? (
+      {gamePhase === "LOGIN" ? (
         <div className="login-container">
           <div className="login-card">
             <h1 className="game-title">斗地主</h1>
@@ -75,7 +78,7 @@ function App() {
             <p className="room-info">{roomName}</p>
 
             <div className="input-group">
-              <input 
+              <input
                 type="text"
                 placeholder="Enter your name"
                 value={name}
@@ -84,8 +87,8 @@ function App() {
                 className="name-input"
                 maxLength="20"
               />
-              <button 
-                onClick={joinGame} 
+              <button
+                onClick={joinGame}
                 className="join-button"
                 disabled={!name.trim()}
               >
@@ -94,7 +97,7 @@ function App() {
             </div>
           </div>
         </div>
-      ) : gamePhase === 'LOBBY' ? (
+      ) : gamePhase === "LOBBY" ? (
         <div className="game-container">
           <header className="game-header">
             <h1 className="game-title-small">斗地主 - {roomName}</h1>
@@ -105,15 +108,20 @@ function App() {
 
           <div className="players-section">
             <h3>Players ({playerList.length}/3)</h3>
-            {console.log('Rendering lobby with playerList:', playerList)}
+            {console.log("Rendering lobby with playerList:", playerList)}
             <div className="players-list">
               {playerList.map((playerName, index) => (
-                <div key={index} className={`player-card ${playerName === name ? 'current-player' : ''}`}>
+                <div
+                  key={index}
+                  className={`player-card ${playerName === name ? "current-player" : ""}`}
+                >
                   <div className="player-avatar">
                     {playerName.charAt(0).toUpperCase()}
                   </div>
                   <span className="player-name">{playerName}</span>
-                  {playerName === name && <span className="you-label">(You)</span>}
+                  {playerName === name && (
+                    <span className="you-label">(You)</span>
+                  )}
                 </div>
               ))}
               {[...Array(3 - playerList.length)].map((_, index) => (
@@ -143,12 +151,17 @@ function App() {
             <h3>Players ({playerList.length}/3)</h3>
             <div className="players-list">
               {playerList.map((playerName, index) => (
-                <div key={index} className={`player-card ${playerName === name ? 'current-player' : ''}`}>
+                <div
+                  key={index}
+                  className={`player-card ${playerName === name ? "current-player" : ""}`}
+                >
                   <div className="player-avatar">
                     {playerName.charAt(0).toUpperCase()}
                   </div>
                   <span className="player-name">{playerName}</span>
-                  {playerName === name && <span className="you-label">(You)</span>}
+                  {playerName === name && (
+                    <span className="you-label">(You)</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -160,9 +173,7 @@ function App() {
               {hand.length > 0 ? (
                 hand.map((card, index) => (
                   <div key={index} className="playing-card">
-                    <div className="card-content">
-                      {card}
-                    </div>
+                    <div className="card-content">{card}</div>
                   </div>
                 ))
               ) : (

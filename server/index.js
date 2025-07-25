@@ -14,11 +14,12 @@ app.get('/', (req, res) => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "https://localhost:3000", /\.replit\.dev$/],
-    methods: ["GET", "POST"],
+    origin: '*', // Allow all origins for now
+    methods: ['GET', 'POST'],
     credentials: true
   }
 });
+
 
 const PORT = process.env.PORT || 3001;
 
