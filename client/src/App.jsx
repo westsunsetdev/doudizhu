@@ -24,12 +24,17 @@ function App() {
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [playerList, setPlayerList] = useState([]);
   const [roomName, setRoomName] = useState("The Pitstop");
+  const [selectedCards, setSelectedCards] = useState([]);
+  const [tableCards, setTableCards] = useState([]);
+  const [lastPlayedBy, setLastPlayedBy] = useState("");
 
   useEffect(() => {
     socket.on("startGame", ({ hand, yourTurn }) => {
       setHand(hand);
       setIsMyTurn(yourTurn);
       setGamePhase("PLAYING");
+      setSelectedCards([]);
+      setTableCards([]);
     });
 
     socket.on("gameMessage", setMessage);
@@ -50,14 +55,35 @@ function App() {
       setGamePhase("LOGIN");
     });
 
+    socket.on("cardsPlayed", ({ playerName, cards, nextPlayer }) => {
+      setTableCards(cards);
+      setLastPlayedBy(playerName);
+      setIsMyTurn(nextPlayer === name);
+      setMessage(`${playerName} played ${cards.length} card(s)`);
+    });
+
+    socket.on("playerPassed", ({ playerName, nextPlayer }) => {
+      setLastPlayedBy("");
+      setTableCards([]);
+      setIsMyTurn(nextPlayer === name);
+      setMessage(`${playerName} passed`);
+    });
+
+    socket.on("turnUpdate", ({ currentPlayer }) => {
+      setIsMyTurn(currentPlayer === name);
+    });
+
     return () => {
       socket.off("startGame");
       socket.off("gameMessage");
       socket.off("playerList");
       socket.off("gamePaused");
       socket.off("roomFull");
+      socket.off("cardsPlayed");
+      socket.off("playerPassed");
+      socket.off("turnUpdate");
     };
-  }, []);
+  }, [name]);
 
   const joinGame = () => {
     if (name.trim()) {
@@ -70,6 +96,37 @@ function App() {
     if (e.key === "Enter") {
       joinGame();
     }
+  };
+
+  const handleCardClick = (cardIndex) => {
+    if (!isMyTurn) return;
+    
+    setSelectedCards(prev => {
+      const isSelected = prev.includes(cardIndex);
+      if (isSelected) {
+        return prev.filter(index => index !== cardIndex);
+      } else {
+        return [...prev, cardIndex];
+      }
+    });
+  };
+
+  const handlePlayCards = () => {
+    if (!isMyTurn || selectedCards.length === 0) return;
+    
+    const cardsToPlay = selectedCards.map(index => hand[index]);
+    const newHand = hand.filter((_, index) => !selectedCards.includes(index));
+    
+    socket.emit("playCards", { cards: cardsToPlay });
+    setHand(newHand);
+    setSelectedCards([]);
+  };
+
+  const handlePass = () => {
+    if (!isMyTurn) return;
+    
+    socket.emit("pass");
+    setSelectedCards([]);
   };
 
   return (
@@ -173,12 +230,29 @@ function App() {
             </div>
           </div>
 
+          {tableCards.length > 0 && (
+            <div className="table-section">
+              <h3>Table - {lastPlayedBy}</h3>
+              <div className="cards-container table-cards">
+                {tableCards.map((card, index) => (
+                  <div key={index} className="playing-card table-card">
+                    <div className="card-content">{card}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="hand-section">
             <h3>Your Hand</h3>
             <div className="cards-container">
               {hand.length > 0 ? (
                 hand.map((card, index) => (
-                  <div key={index} className="playing-card">
+                  <div 
+                    key={index} 
+                    className={`playing-card ${selectedCards.includes(index) ? 'selected' : ''}`}
+                    onClick={() => handleCardClick(index)}
+                  >
                     <div className="card-content">{card}</div>
                   </div>
                 ))
@@ -189,10 +263,18 @@ function App() {
           </div>
 
           <div className="game-actions">
-            <button className="action-button" disabled={!isMyTurn}>
-              Play Cards
+            <button 
+              className="action-button" 
+              disabled={!isMyTurn || selectedCards.length === 0}
+              onClick={handlePlayCards}
+            >
+              Play Cards ({selectedCards.length})
             </button>
-            <button className="action-button secondary" disabled={!isMyTurn}>
+            <button 
+              className="action-button secondary" 
+              disabled={!isMyTurn}
+              onClick={handlePass}
+            >
               Pass
             </button>
           </div>

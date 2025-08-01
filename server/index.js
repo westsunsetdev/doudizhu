@@ -31,7 +31,10 @@ let gameState = {
   playerOrder: [],
   currentTurn: 0,
   deck: [],
-  started: false
+  started: false,
+  tableCards: [],
+  lastPlayedBy: "",
+  currentPlayerIndex: 0
 };
 
 io.on('connection', (socket) => {
@@ -77,10 +80,79 @@ io.on('connection', (socket) => {
     io.emit('gamePaused', gameState.players[socket.id]?.name || 'A player');
   });
 
+  socket.on('playCards', ({ cards }) => {
+    const playerId = socket.id;
+    const playerName = gameState.players[playerId]?.name;
+    
+    if (!playerName || gameState.playerOrder[gameState.currentPlayerIndex] !== playerId) {
+      return; // Not this player's turn
+    }
+
+    // Remove cards from player's hand
+    const playerHand = gameState.players[playerId].hand;
+    cards.forEach(card => {
+      const cardIndex = playerHand.indexOf(card);
+      if (cardIndex > -1) {
+        playerHand.splice(cardIndex, 1);
+      }
+    });
+
+    // Update game state
+    gameState.tableCards = cards;
+    gameState.lastPlayedBy = playerName;
+
+    // Check if player won (no cards left)
+    if (playerHand.length === 0) {
+      io.emit('gameMessage', `${playerName} wins the game!`);
+      // Reset game state for new game
+      gameState.started = false;
+      gameState.players = {};
+      gameState.playerOrder = [];
+      return;
+    }
+
+    // Move to next turn
+    nextTurn();
+
+    // Notify all players
+    io.emit('cardsPlayed', {
+      playerName,
+      cards,
+      nextPlayer: gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name
+    });
+  });
+
+  socket.on('pass', () => {
+    const playerId = socket.id;
+    const playerName = gameState.players[playerId]?.name;
+    
+    if (!playerName || gameState.playerOrder[gameState.currentPlayerIndex] !== playerId) {
+      return; // Not this player's turn
+    }
+
+    // Clear table if everyone has passed
+    if (gameState.lastPlayedBy === "") {
+      // This is the first pass, clear the table
+      gameState.tableCards = [];
+    }
+
+    // Move to next turn
+    nextTurn();
+
+    // Notify all players
+    io.emit('playerPassed', {
+      playerName,
+      nextPlayer: gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name
+    });
+  });
+
   function startGame() {
     gameState.started = true;
     gameState.deck = shuffleDeck();
     const hands = dealCards(gameState.deck, 3);
+    gameState.currentPlayerIndex = 0;
+    gameState.tableCards = [];
+    gameState.lastPlayedBy = "";
 
     gameState.playerOrder.forEach((id, index) => {
       gameState.players[id].hand = hands[index];
@@ -91,6 +163,15 @@ io.on('connection', (socket) => {
     });
 
     io.emit('gameMessage', `${gameState.players[gameState.playerOrder[0]].name}'s turn`);
+  }
+
+  function nextTurn() {
+    gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.playerOrder.length;
+    const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
+    const currentPlayerName = gameState.players[currentPlayerId].name;
+    
+    io.emit('turnUpdate', { currentPlayer: currentPlayerName });
+    io.emit('gameMessage', `${currentPlayerName}'s turn`);
   }
 });
 

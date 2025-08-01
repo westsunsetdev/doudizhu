@@ -300,6 +300,35 @@ body {
   z-index: 10;
 }
 
+.playing-card.selected {
+  border: 3px solid #ffd700;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+  transform: translateY(-15px) scale(1.1);
+  z-index: 15;
+}
+
+.playing-card.selected:hover {
+  transform: translateY(-15px) scale(1.1);
+}
+
+.table-cards {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 2px solid rgba(255, 215, 0, 0.3);
+}
+
+.table-card {
+  background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+  border: 2px solid #ffd700;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4);
+}
+
+.table-card:hover {
+  transform: translateY(-5px) scale(1.02);
+}
+
 .card-content {
   font-size: 0.8rem;
   font-weight: bold;
