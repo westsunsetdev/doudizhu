@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import io from "socket.io-client";
 import "./App.css";
 
-const socket = io( 'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
+// const socket = io( 'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
   // `${window.location.protocol}//${window.location.hostname}:3001`,
+const socket = io( `${window.location.protocol}//${window.location.hostname}:3001`,
   {
     transports: ["websocket", "polling"],
     forceNew: true,
