@@ -64,20 +64,56 @@ io.on('connection', (socket) => {
     console.log('Broadcasting player list to all clients:', playerData);
     io.emit('playerList', playerData);
 
-    // Also send specifically to the joining user after a small delay
-    setTimeout(() => {
-      console.log('Sending delayed player list to joining user:', playerData);
-      socket.emit('playerList', playerData);
-    }, 200);
+    // Also send specifically to the joining user immediately
+    console.log('Sending player list to joining user:', playerData);
+    socket.emit('playerList', playerData);
 
     if (Object.keys(gameState.players).length === MAX_PLAYERS) {
       startGame();
     }
   });
 
+  socket.on('requestPlayerList', () => {
+    const playerData = {
+      players: Object.values(gameState.players).map(p => p.name),
+      roomName: ROOM_NAME
+    };
+    console.log('Sending player list on request:', playerData);
+    socket.emit('playerList', playerData);
+  });
+
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
-    io.emit('gamePaused', gameState.players[socket.id]?.name || 'A player');
+    const disconnectedPlayerName = gameState.players[socket.id]?.name || 'A player';
+    
+    // Remove the disconnected player from the game state
+    delete gameState.players[socket.id];
+    const playerIndex = gameState.playerOrder.indexOf(socket.id);
+    if (playerIndex > -1) {
+      gameState.playerOrder.splice(playerIndex, 1);
+    }
+    
+    // If game was in progress, reset it
+    if (gameState.started) {
+      gameState.started = false;
+      gameState.deck = [];
+      gameState.tableCards = [];
+      gameState.lastPlayedBy = "";
+      gameState.currentPlayerIndex = 0;
+      
+      io.emit('gameReset', { message: `${disconnectedPlayerName} disconnected. Game reset.` });
+    }
+    
+    // Update remaining players
+    if (Object.keys(gameState.players).length > 0) {
+      const playerData = {
+        players: Object.values(gameState.players).map(p => p.name),
+        roomName: ROOM_NAME
+      };
+      io.emit('playerList', playerData);
+    }
+    
+    io.emit('gamePaused', disconnectedPlayerName);
   });
 
   socket.on('playCards', ({ cards }) => {
@@ -162,7 +198,7 @@ io.on('connection', (socket) => {
       });
     });
 
-    io.emit('gameMessage', `${gameState.players[gameState.playerOrder[0]].name}'s turn`);
+    io.emit('turnUpdate', { currentPlayer: gameState.players[gameState.playerOrder[0]].name });
   }
 
   function nextTurn() {
@@ -171,7 +207,6 @@ io.on('connection', (socket) => {
     const currentPlayerName = gameState.players[currentPlayerId].name;
     
     io.emit('turnUpdate', { currentPlayer: currentPlayerName });
-    io.emit('gameMessage', `${currentPlayerName}'s turn`);
   }
 });
 

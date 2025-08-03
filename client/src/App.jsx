@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import io from "socket.io-client";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import "./App.css";
 
 const socket = io( 
@@ -27,14 +28,23 @@ function App() {
   const [selectedCards, setSelectedCards] = useState([]);
   const [tableCards, setTableCards] = useState([]);
   const [lastPlayedBy, setLastPlayedBy] = useState("");
+  const [currentTurnPlayer, setCurrentTurnPlayer] = useState("");
 
   useEffect(() => {
+    // Request player list periodically when in lobby
+    const interval = setInterval(() => {
+      if (gamePhase === "LOBBY") {
+        socket.emit("requestPlayerList");
+      }
+    }, 2000);
+
     socket.on("startGame", ({ hand, yourTurn }) => {
       setHand(hand);
       setIsMyTurn(yourTurn);
       setGamePhase("PLAYING");
       setSelectedCards([]);
       setTableCards([]);
+      // The turnUpdate event will set the current turn player
     });
 
     socket.on("gameMessage", setMessage);
@@ -42,12 +52,24 @@ function App() {
     socket.on("playerList", (data) => {
       console.log("Received player list:", data); // Debug log
       console.log("Current game phase:", gamePhase); // Debug log
+      console.log("Setting player list to:", data.players || []); // Debug log
       setPlayerList(data.players || []);
       setRoomName(data.roomName);
     });
 
     socket.on("gamePaused", (player) => {
       alert(`${player} disconnected. Game paused.`);
+    });
+
+    socket.on("gameReset", ({ message }) => {
+      setGamePhase("LOBBY");
+      setHand([]);
+      setSelectedCards([]);
+      setTableCards([]);
+      setLastPlayedBy("");
+      setCurrentTurnPlayer("");
+      setIsMyTurn(false);
+      alert(message);
     });
 
     socket.on("roomFull", (data) => {
@@ -59,25 +81,26 @@ function App() {
       setTableCards(cards);
       setLastPlayedBy(playerName);
       setIsMyTurn(nextPlayer === name);
-      setMessage(`${playerName} played ${cards.length} card(s)`);
     });
 
     socket.on("playerPassed", ({ playerName, nextPlayer }) => {
       setLastPlayedBy("");
       setTableCards([]);
       setIsMyTurn(nextPlayer === name);
-      setMessage(`${playerName} passed`);
     });
 
     socket.on("turnUpdate", ({ currentPlayer }) => {
       setIsMyTurn(currentPlayer === name);
+      setCurrentTurnPlayer(currentPlayer);
     });
 
     return () => {
+      clearInterval(interval);
       socket.off("startGame");
       socket.off("gameMessage");
       socket.off("playerList");
       socket.off("gamePaused");
+      socket.off("gameReset");
       socket.off("roomFull");
       socket.off("cardsPlayed");
       socket.off("playerPassed");
@@ -89,6 +112,10 @@ function App() {
     if (name.trim()) {
       socket.emit("joinGame", name.trim());
       setGamePhase("LOBBY");
+      // Request current player list after joining
+      setTimeout(() => {
+        socket.emit("requestPlayerList");
+      }, 100);
     }
   };
 
@@ -129,9 +156,60 @@ function App() {
     setSelectedCards([]);
   };
 
+  const getCardValue = (card) => {
+    const rank = card.replace(/[♠♣♦♥]/g, '');
+    
+    if (rank === 'JOKER-HIGH') return 16;
+    if (rank === 'JOKER-LOW') return 15;
+    if (rank === '2') return 14;
+    if (rank === 'A') return 13;
+    if (rank === 'K') return 12;
+    if (rank === 'Q') return 11;
+    if (rank === 'J') return 10;
+    if (rank === '10') return 9;
+    if (rank === '9') return 8;
+    if (rank === '8') return 7;
+    if (rank === '7') return 6;
+    if (rank === '6') return 5;
+    if (rank === '5') return 4;
+    if (rank === '4') return 3;
+    if (rank === '3') return 2;
+    
+    return 1; // fallback
+  };
+
+  const sortHandLowToHigh = () => {
+    const sortedHand = [...hand].sort((a, b) => getCardValue(a) - getCardValue(b));
+    setHand(sortedHand);
+  };
+
+  const handleDragEnd = (result) => {
+    if (!result.destination) return;
+
+    const items = Array.from(hand);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    setHand(items);
+    
+    // Update selected cards indices after reordering
+    setSelectedCards(prev => {
+      const newSelected = [];
+      selectedCards.forEach(oldIndex => {
+        const card = hand[oldIndex];
+        const newIndex = items.findIndex(item => item === card);
+        if (newIndex !== -1) {
+          newSelected.push(newIndex);
+        }
+      });
+      return newSelected;
+    });
+  };
+
   return (
-    <div className="app">
-      <div className="background-pattern"></div>
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className="app">
+        <div className="background-pattern"></div>
 
       {gamePhase === "LOGIN" ? (
         <div className="login-container">
@@ -206,17 +284,16 @@ function App() {
             <h1 className="game-title-small">斗地主 - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
-              {isMyTurn && <p className="turn-indicator">🎯 Your Turn!</p>}
             </div>
           </header>
 
           <div className="players-section">
-            <h3>Players ({playerList.length}/3)</h3>
+            <h3>Players ({playerList.length}/3) - {currentTurnPlayer}'s turn</h3>
             <div className="players-list">
               {playerList.map((playerName, index) => (
                 <div
                   key={index}
-                  className={`player-card ${playerName === name ? "current-player" : ""}`}
+                  className={`player-card ${playerName === currentTurnPlayer ? "active-turn" : ""}`}
                 >
                   <div className="player-avatar">
                     {playerName.charAt(0).toUpperCase()}
@@ -232,35 +309,17 @@ function App() {
 
           {tableCards.length > 0 && (
             <div className="table-section">
-              <h3>Table - {lastPlayedBy}</h3>
+              <h3>Table</h3>
               <div className="cards-container table-cards">
                 {tableCards.map((card, index) => (
                   <div key={index} className="playing-card table-card">
                     <div className="card-content">{card}</div>
                   </div>
                 ))}
+                <p className="played-by">Played by {lastPlayedBy}</p>
               </div>
             </div>
           )}
-
-          <div className="hand-section">
-            <h3>Your Hand</h3>
-            <div className="cards-container">
-              {hand.length > 0 ? (
-                hand.map((card, index) => (
-                  <div 
-                    key={index} 
-                    className={`playing-card ${selectedCards.includes(index) ? 'selected' : ''}`}
-                    onClick={() => handleCardClick(index)}
-                  >
-                    <div className="card-content">{card}</div>
-                  </div>
-                ))
-              ) : (
-                <p className="no-cards">Waiting for cards...</p>
-              )}
-            </div>
-          </div>
 
           <div className="game-actions">
             <button 
@@ -278,9 +337,53 @@ function App() {
               Pass
             </button>
           </div>
+
+          <div className="hand-section">
+            <h3>Your Hand</h3>
+            <Droppable droppableId="hand" direction="horizontal">
+              {(provided) => (
+                <div 
+                  className="cards-container"
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                >
+                  {hand.length > 0 ? (
+                    hand.map((card, index) => (
+                      <Draggable key={`${card}-${index}`} draggableId={`${card}-${index}`} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className={`playing-card ${selectedCards.includes(index) ? 'selected' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
+                            onClick={() => handleCardClick(index)}
+                          >
+                            <div className="card-content">{card}</div>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))
+                  ) : (
+                    <p className="no-cards">Waiting for cards...</p>
+                  )}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+            <div className="hand-actions">
+              <button 
+                className="sort-button" 
+                onClick={sortHandLowToHigh}
+                disabled={hand.length === 0}
+              >
+                Sort Low to High
+              </button>
+            </div>
+          </div>
         </div>
       )}
-    </div>
+      </div>
+    </DragDropContext>
   );
 }
 
