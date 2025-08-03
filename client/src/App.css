@@ -177,6 +177,9 @@ body {
 /* Players Section */
 .players-section {
   margin-bottom: 30px;
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
 }
 
 .players-section h3 {
@@ -187,20 +190,25 @@ body {
 
 .players-list {
   display: flex;
+  flex-direction: column;
   gap: 15px;
-  justify-content: center;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  max-width: 400px;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .player-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  padding: 15px;
+  justify-content: space-between;
+  padding: 15px 20px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 15px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  min-width: 120px;
+  width: 100%;
+  max-width: 350px;
   transition: all 0.3s ease;
 }
 
@@ -226,17 +234,17 @@ body {
 }
 
 .player-avatar {
-  width: 50px;
-  height: 50px;
+  width: 25px;
+  height: 25px;
   border-radius: 50%;
   background: linear-gradient(45deg, #ffd700, #ffed4e);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 0.75rem;
   font-weight: bold;
   color: #0f4c3a;
-  margin-bottom: 10px;
+  margin-right: 15px;
 }
 
 .waiting-avatar {
@@ -247,13 +255,22 @@ body {
 .player-name {
   font-size: 1rem;
   color: #fff;
-  margin-bottom: 5px;
+  margin-right: 10px;
 }
 
 .you-label {
   font-size: 0.8rem;
   color: #ffd700;
   font-style: italic;
+  margin-right: 10px;
+}
+
+.card-count {
+  font-size: 0.8rem;
+  color: #fff;
+  opacity: 0.8;
+  font-weight: bold;
+  margin-left: auto;
 }
 
 .lobby-info {
@@ -372,6 +389,11 @@ body {
   width: 100%;
 }
 
+.table-section {
+  flex: 1;
+  min-width: 300px;
+}
+
 .table-cards {
   background: rgba(0, 0, 0, 0.3);
   border-radius: 15px;
@@ -390,6 +412,13 @@ body {
   transform: translateY(-5px) scale(1.02);
 }
 
+.card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
 .card-content {
   font-size: 0.8rem;
   font-weight: bold;
@@ -397,6 +426,10 @@ body {
   text-align: center;
   word-wrap: break-word;
   padding: 5px;
+}
+
+.card-content.fallback {
+  display: none;
 }
 
 .no-cards {
@@ -445,6 +478,22 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+.error-message {
+  background: rgba(255, 0, 0, 0.1);
+  padding: 10px 15px;
+  margin-top: 15px;
+  color: #ff4444;
+  font-weight: bold;
+  text-align: center;
+  animation: errorShake 0.5s ease-in-out;
+}
+
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 
 /* Responsive Design */

@@ -29,6 +29,7 @@ function App() {
   const [tableCards, setTableCards] = useState([]);
   const [lastPlayedBy, setLastPlayedBy] = useState("");
   const [currentTurnPlayer, setCurrentTurnPlayer] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     // Request player list periodically when in lobby
@@ -83,15 +84,23 @@ function App() {
       setIsMyTurn(nextPlayer === name);
     });
 
-    socket.on("playerPassed", ({ playerName, nextPlayer }) => {
-      setLastPlayedBy("");
-      setTableCards([]);
+    socket.on("playerPassed", ({ playerName, nextPlayer, consecutivePasses, tableCleared }) => {
+      if (tableCleared) {
+        setLastPlayedBy("");
+        setTableCards([]);
+      }
       setIsMyTurn(nextPlayer === name);
     });
 
     socket.on("turnUpdate", ({ currentPlayer }) => {
       setIsMyTurn(currentPlayer === name);
       setCurrentTurnPlayer(currentPlayer);
+    });
+
+    socket.on("invalidPlay", ({ message }) => {
+      setErrorMessage(message);
+      // Clear error message after 3 seconds
+      setTimeout(() => setErrorMessage(""), 3000);
     });
 
     return () => {
@@ -105,6 +114,7 @@ function App() {
       socket.off("cardsPlayed");
       socket.off("playerPassed");
       socket.off("turnUpdate");
+      socket.off("invalidPlay");
     };
   }, [name]);
 
@@ -178,6 +188,48 @@ function App() {
     return 1; // fallback
   };
 
+  const getCardImage = (card) => {
+    const rank = card.replace(/[♠♣♦♥]/g, '');
+    const suit = card.match(/[♠♣♦♥]/)?.[0] || '';
+    
+    // Handle jokers
+    if (rank === 'JOKER-HIGH') return '/playing_card_images/black_joker.svg';
+    if (rank === 'JOKER-LOW') return '/playing_card_images/red_joker.svg';
+    
+    // Map suits to their names
+    const suitMap = {
+      '♠': 'spades',
+      '♣': 'clubs', 
+      '♦': 'diamonds',
+      '♥': 'hearts'
+    };
+    
+    const suitName = suitMap[suit];
+    if (!suitName) return '/playing_card_images/back.svg'; // fallback
+    
+    // Map ranks to their names
+    const rankMap = {
+      'A': 'ace',
+      'K': 'king',
+      'Q': 'queen',
+      'J': 'jack',
+      '10': '10',
+      '9': '9',
+      '8': '8',
+      '7': '7',
+      '6': '6',
+      '5': '5',
+      '4': '4',
+      '3': '3',
+      '2': '2'
+    };
+    
+    const rankName = rankMap[rank];
+    if (!rankName) return '/playing_card_images/back.svg'; // fallback
+    
+    return `/playing_card_images/${rankName}_of_${suitName}.svg`;
+  };
+
   const sortHandLowToHigh = () => {
     const sortedHand = [...hand].sort((a, b) => getCardValue(a) - getCardValue(b));
     setHand(sortedHand);
@@ -214,8 +266,8 @@ function App() {
       {gamePhase === "LOGIN" ? (
         <div className="login-container">
           <div className="login-card">
-            <h1 className="game-title">斗地主</h1>
-            <h2 className="game-subtitle">Dou Dizhu</h2>
+            <h1 className="game-title">Dou Dizhu</h1>
+            <h2 className="game-subtitle">v1</h2>
             <p className="room-info">{roomName}</p>
 
             <div className="input-group">
@@ -241,7 +293,7 @@ function App() {
       ) : gamePhase === "LOBBY" ? (
         <div className="game-container">
           <header className="game-header">
-            <h1 className="game-title-small">斗地主 - {roomName}</h1>
+            <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               <p className="status-message">Waiting for players to join...</p>
             </div>
@@ -251,18 +303,19 @@ function App() {
             <h3>Players ({playerList.length}/3)</h3>
             {console.log("Rendering lobby with playerList:", playerList)}
             <div className="players-list">
-              {playerList.map((playerName, index) => (
+              {playerList.map((player, index) => (
                 <div
                   key={index}
-                  className={`player-card ${playerName === name ? "current-player" : ""}`}
+                  className={`player-card ${player.name === name ? "current-player" : ""}`}
                 >
                   <div className="player-avatar">
-                    {playerName.charAt(0).toUpperCase()}
+                    {player.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="player-name">{playerName}</span>
-                  {playerName === name && (
+                  <span className="player-name">{player.name}</span>
+                  {player.name === name && (
                     <span className="you-label">(You)</span>
                   )}
+                  <span className="card-count">{player.cardCount} cards</span>
                 </div>
               ))}
               {[...Array(3 - playerList.length)].map((_, index) => (
@@ -281,45 +334,57 @@ function App() {
       ) : (
         <div className="game-container">
           <header className="game-header">
-            <h1 className="game-title-small">斗地主 - {roomName}</h1>
+            <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
             </div>
           </header>
 
           <div className="players-section">
-            <h3>Players ({playerList.length}/3) - {currentTurnPlayer}'s turn</h3>
-            <div className="players-list">
-              {playerList.map((playerName, index) => (
-                <div
-                  key={index}
-                  className={`player-card ${playerName === currentTurnPlayer ? "active-turn" : ""}`}
-                >
-                  <div className="player-avatar">
-                    {playerName.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="player-name">{playerName}</span>
-                  {playerName === name && (
-                    <span className="you-label">(You)</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {tableCards.length > 0 && (
-            <div className="table-section">
-              <h3>Table</h3>
-              <div className="cards-container table-cards">
-                {tableCards.map((card, index) => (
-                  <div key={index} className="playing-card table-card">
-                    <div className="card-content">{card}</div>
+            <div>
+              <h3>Players ({playerList.length}/3) - {currentTurnPlayer}'s turn</h3>
+              <div className="players-list">
+                {playerList.map((player, index) => (
+                  <div
+                    key={index}
+                    className={`player-card ${player.name === currentTurnPlayer ? "active-turn" : ""}`}
+                  >
+                    <div className="player-avatar">
+                      {player.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="player-name">{player.name}</span>
+                    {player.name === name && (
+                      <span className="you-label">(You)</span>
+                    )}
+                    <span className="card-count">{player.cardCount} cards</span>
                   </div>
                 ))}
-                <p className="played-by">Played by {lastPlayedBy}</p>
               </div>
             </div>
-          )}
+
+            {tableCards.length > 0 && (
+              <div className="table-section">
+                <h3>Table</h3>
+                <div className="cards-container table-cards">
+                  {tableCards.map((card, index) => (
+                    <div key={index} className="playing-card table-card">
+                      <img 
+                        src={getCardImage(card)} 
+                        alt={card}
+                        className="card-image"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'block';
+                        }}
+                      />
+                      <div className="card-content fallback">{card}</div>
+                    </div>
+                  ))}
+                  <p className="played-by">Played by {lastPlayedBy}</p>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="game-actions">
             <button 
@@ -337,6 +402,11 @@ function App() {
               Pass
             </button>
           </div>
+          {errorMessage && (
+            <div className="error-message">
+              {errorMessage}
+            </div>
+          )}
 
           <div className="hand-section">
             <h3>Your Hand</h3>
@@ -358,7 +428,16 @@ function App() {
                             className={`playing-card ${selectedCards.includes(index) ? 'selected' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
                             onClick={() => handleCardClick(index)}
                           >
-                            <div className="card-content">{card}</div>
+                            <img 
+                              src={getCardImage(card)} 
+                              alt={card}
+                              className="card-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <div className="card-content fallback">{card}</div>
                           </div>
                         )}
                       </Draggable>

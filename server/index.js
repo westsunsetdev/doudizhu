@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { shuffleDeck, dealCards } = require('./game/deck');
+const { canPlayCards, identifyCardType } = require('./game/rules');
 
 const app = express();
 
@@ -34,7 +35,8 @@ let gameState = {
   started: false,
   tableCards: [],
   lastPlayedBy: "",
-  currentPlayerIndex: 0
+  currentPlayerIndex: 0,
+  consecutivePasses: 0
 };
 
 io.on('connection', (socket) => {
@@ -58,7 +60,7 @@ io.on('connection', (socket) => {
 
     // Send updated player list to all clients
     const playerData = {
-      players: Object.values(gameState.players).map(p => p.name),
+      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length })),
       roomName: ROOM_NAME
     };
     console.log('Broadcasting player list to all clients:', playerData);
@@ -75,7 +77,7 @@ io.on('connection', (socket) => {
 
   socket.on('requestPlayerList', () => {
     const playerData = {
-      players: Object.values(gameState.players).map(p => p.name),
+      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length })),
       roomName: ROOM_NAME
     };
     console.log('Sending player list on request:', playerData);
@@ -100,6 +102,7 @@ io.on('connection', (socket) => {
       gameState.tableCards = [];
       gameState.lastPlayedBy = "";
       gameState.currentPlayerIndex = 0;
+      gameState.consecutivePasses = 0;
       
       io.emit('gameReset', { message: `${disconnectedPlayerName} disconnected. Game reset.` });
     }
@@ -107,7 +110,7 @@ io.on('connection', (socket) => {
     // Update remaining players
     if (Object.keys(gameState.players).length > 0) {
       const playerData = {
-        players: Object.values(gameState.players).map(p => p.name),
+        players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length })),
         roomName: ROOM_NAME
       };
       io.emit('playerList', playerData);
@@ -124,6 +127,17 @@ io.on('connection', (socket) => {
       return; // Not this player's turn
     }
 
+    // Validate the card combination
+    const isFirstPlay = gameState.tableCards.length === 0;
+    const isValidPlay = canPlayCards(cards, gameState.tableCards, isFirstPlay);
+    
+    if (!isValidPlay) {
+      socket.emit('invalidPlay', { 
+        message: 'Invalid card combination or cannot beat the previous play' 
+      });
+      return;
+    }
+
     // Remove cards from player's hand
     const playerHand = gameState.players[playerId].hand;
     cards.forEach(card => {
@@ -136,6 +150,7 @@ io.on('connection', (socket) => {
     // Update game state
     gameState.tableCards = cards;
     gameState.lastPlayedBy = playerName;
+    gameState.consecutivePasses = 0; // Reset consecutive passes when cards are played
 
     // Check if player won (no cards left)
     if (playerHand.length === 0) {
@@ -146,6 +161,13 @@ io.on('connection', (socket) => {
       gameState.playerOrder = [];
       return;
     }
+
+    // Update player list with current card counts
+    const playerData = {
+      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length })),
+      roomName: ROOM_NAME
+    };
+    io.emit('playerList', playerData);
 
     // Move to next turn
     nextTurn();
@@ -166,10 +188,17 @@ io.on('connection', (socket) => {
       return; // Not this player's turn
     }
 
-    // Clear table if everyone has passed
-    if (gameState.lastPlayedBy === "") {
-      // This is the first pass, clear the table
+    // Increment consecutive passes
+    gameState.consecutivePasses++;
+
+    // Check if table should be cleared (before resetting)
+    const shouldClearTable = gameState.consecutivePasses >= 2;
+
+    // Clear table only after 2 consecutive passes
+    if (shouldClearTable) {
       gameState.tableCards = [];
+      gameState.lastPlayedBy = "";
+      gameState.consecutivePasses = 0;
     }
 
     // Move to next turn
@@ -178,7 +207,9 @@ io.on('connection', (socket) => {
     // Notify all players
     io.emit('playerPassed', {
       playerName,
-      nextPlayer: gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name
+      nextPlayer: gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name,
+      consecutivePasses: gameState.consecutivePasses,
+      tableCleared: shouldClearTable
     });
   });
 
@@ -189,6 +220,7 @@ io.on('connection', (socket) => {
     gameState.currentPlayerIndex = 0;
     gameState.tableCards = [];
     gameState.lastPlayedBy = "";
+    gameState.consecutivePasses = 0;
 
     gameState.playerOrder.forEach((id, index) => {
       gameState.players[id].hand = hands[index];
@@ -197,6 +229,13 @@ io.on('connection', (socket) => {
         yourTurn: index === 0
       });
     });
+
+    // Update player list with card counts after dealing
+    const playerData = {
+      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length })),
+      roomName: ROOM_NAME
+    };
+    io.emit('playerList', playerData);
 
     io.emit('turnUpdate', { currentPlayer: gameState.players[gameState.playerOrder[0]].name });
   }
