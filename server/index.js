@@ -2,7 +2,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { shuffleDeck, dealCards } = require('./game/deck');
+const { shuffleDeckWithFaceUp } = require('./game/deck');
 const { canPlayCards, identifyCardType } = require('./game/rules');
 
 const app = express();
@@ -36,7 +36,11 @@ let gameState = {
   tableCards: [],
   lastPlayedBy: "",
   currentPlayerIndex: 0,
-  consecutivePasses: 0
+  consecutivePasses: 0,
+  bottomCards: [],
+  faceUpCard: "",
+  pickUpIndex: 0,
+  pickUpAttempts: 0
 };
 
 io.on('connection', (socket) => {
@@ -103,6 +107,10 @@ io.on('connection', (socket) => {
       gameState.lastPlayedBy = "";
       gameState.currentPlayerIndex = 0;
       gameState.consecutivePasses = 0;
+      gameState.bottomCards = [];
+      gameState.faceUpCard = "";
+      gameState.pickUpIndex = 0;
+      gameState.pickUpAttempts = 0;
       
       io.emit('gameReset', { message: `${disconnectedPlayerName} disconnected. Game reset.` });
     }
@@ -213,38 +221,106 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('pickupDecision', ({ take }) => {
+    const playerId = socket.id;
+    const playerIndex = gameState.playerOrder.indexOf(playerId);
+    if (playerIndex !== gameState.pickUpIndex || gameState.started) return;
+
+    if (take) {
+      assignBottom(playerIndex, false);
+    } else {
+      io.emit('gameMessage', `${gameState.players[playerId].name} passed on the bottom cards`);
+      gameState.pickUpAttempts++;
+      if (gameState.pickUpAttempts >= 2) {
+        const nextIndex = (gameState.pickUpIndex + 1) % gameState.playerOrder.length;
+        assignBottom(nextIndex, true);
+      } else {
+        gameState.pickUpIndex = (gameState.pickUpIndex + 1) % gameState.playerOrder.length;
+        promptPickup();
+      }
+    }
+  });
+
   function startGame() {
-    gameState.started = true;
-    gameState.deck = shuffleDeck();
-    const hands = dealCards(gameState.deck, 3);
-    gameState.currentPlayerIndex = 0;
+    gameState.started = false;
+    const { deck, faceUpIndex, faceUpCard } = shuffleDeckWithFaceUp();
+    gameState.deck = deck;
+    gameState.faceUpCard = faceUpCard;
     gameState.tableCards = [];
     gameState.lastPlayedBy = "";
     gameState.consecutivePasses = 0;
+    gameState.currentPlayerIndex = 0;
+
+    const hands = [[], [], []];
+    let faceUpPlayerIndex = 0;
+    for (let i = 0; i < 51; i++) {
+      const card = deck[i];
+      const playerIdx = i % 3;
+      if (i === faceUpIndex) faceUpPlayerIndex = playerIdx;
+      hands[playerIdx].push(card);
+    }
+    gameState.bottomCards = deck.slice(51);
 
     gameState.playerOrder.forEach((id, index) => {
       gameState.players[id].hand = hands[index];
-      io.to(id).emit('startGame', {
-        hand: hands[index],
-        yourTurn: index === 0
-      });
+      const concealed = hands[index].map(card =>
+        index === faceUpPlayerIndex && card === faceUpCard ? card : 'BACK'
+      );
+      io.to(id).emit('initialDeal', { hand: concealed });
     });
 
-    // Update player list with card counts after dealing
+    const faceUpPlayerName = gameState.players[gameState.playerOrder[faceUpPlayerIndex]].name;
+    io.emit('gameMessage', `${faceUpPlayerName} received the ${faceUpCard} face up`);
+
     const playerData = {
       players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length })),
       roomName: ROOM_NAME
     };
     io.emit('playerList', playerData);
 
-    io.emit('turnUpdate', { currentPlayer: gameState.players[gameState.playerOrder[0]].name });
+    gameState.pickUpIndex = faceUpPlayerIndex;
+    gameState.pickUpAttempts = 0;
+    promptPickup();
   }
 
   function nextTurn() {
     gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.playerOrder.length;
     const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
     const currentPlayerName = gameState.players[currentPlayerId].name;
-    
+
+    io.emit('turnUpdate', { currentPlayer: currentPlayerName });
+  }
+
+  function promptPickup() {
+    const playerId = gameState.playerOrder[gameState.pickUpIndex];
+    const playerName = gameState.players[playerId].name;
+    io.emit('pickupTurn', { playerName });
+  }
+
+  function assignBottom(playerIndex, forced) {
+    const playerId = gameState.playerOrder[playerIndex];
+    const playerName = gameState.players[playerId].name;
+    gameState.players[playerId].hand.push(...gameState.bottomCards);
+    gameState.bottomCards = [];
+    gameState.currentPlayerIndex = playerIndex;
+    gameState.started = true;
+
+    io.emit('gameMessage', `${playerName} ${forced ? 'was forced to pick up' : 'picked up'} the bottom cards`);
+
+    gameState.playerOrder.forEach((id, idx) => {
+      io.to(id).emit('startGame', {
+        hand: gameState.players[id].hand,
+        yourTurn: idx === gameState.currentPlayerIndex
+      });
+    });
+
+    const playerData = {
+      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length })),
+      roomName: ROOM_NAME
+    };
+    io.emit('playerList', playerData);
+
+    const currentPlayerName = gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name;
     io.emit('turnUpdate', { currentPlayer: currentPlayerName });
   }
 });
