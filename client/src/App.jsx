@@ -2,27 +2,42 @@ import React, { useEffect, useState } from "react";
 import io from "socket.io-client";
 import "./App.css";
 
-const socket = io( 'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
+const socket = io(
+  "https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/",
   // `${window.location.protocol}//${window.location.hostname}:3001`,
   {
     transports: ["websocket", "polling"],
     forceNew: true,
-  },
+  }
 );
 
 function App() {
   const [name, setName] = useState("");
   const [hand, setHand] = useState([]);
-  const [gamePhase, setGamePhase] = useState("LOGIN"); // LOGIN, LOBBY, PLAYING
+  const [gamePhase, setGamePhase] = useState("LOGIN"); // LOGIN, LOBBY, DEALING, PLAYING
   const [message, setMessage] = useState("");
   const [isMyTurn, setIsMyTurn] = useState(false);
+  const [isChooser, setIsChooser] = useState(false);
+  const [faceUpInfo, setFaceUpInfo] = useState(null);
   const [playerList, setPlayerList] = useState([]);
   const [roomName, setRoomName] = useState("The Pitstop");
 
   useEffect(() => {
+    socket.on("initialDeal", ({ hand, faceUpInfo }) => {
+      setHand(hand);
+      setFaceUpInfo(faceUpInfo);
+      setGamePhase("DEALING");
+      setMessage(`${faceUpInfo.player} drew ${faceUpInfo.card}`);
+    });
+
+    socket.on("promptBottom", () => {
+      setIsChooser(true);
+    });
+
     socket.on("startGame", ({ hand, yourTurn }) => {
       setHand(hand);
       setIsMyTurn(yourTurn);
+      setIsChooser(false);
       setGamePhase("PLAYING");
     });
 
@@ -45,6 +60,8 @@ function App() {
     });
 
     return () => {
+      socket.off("initialDeal");
+      socket.off("promptBottom");
       socket.off("startGame");
       socket.off("gameMessage");
       socket.off("playerList");
@@ -64,6 +81,36 @@ function App() {
     if (e.key === "Enter") {
       joinGame();
     }
+  };
+
+  const decideBottom = (take) => {
+    setIsChooser(false);
+    socket.emit("bottomDecision", take);
+  };
+
+  const getCardImage = (card) => {
+    if (card === "back") return "/playing_card_images/back.svg";
+    if (card === "JOKER-HIGH") return "/playing_card_images/black_joker.svg";
+    if (card === "JOKER-LOW") return "/playing_card_images/red_joker.svg";
+    const suitMap = { "♠": "spades", "♣": "clubs", "♦": "diamonds", "♥": "hearts" };
+    const rankMap = {
+      A: "ace",
+      K: "king",
+      Q: "queen",
+      J: "jack",
+      "10": "10",
+      "9": "9",
+      "8": "8",
+      "7": "7",
+      "6": "6",
+      "5": "5",
+      "4": "4",
+      "3": "3",
+      "2": "2",
+    };
+    const rank = card.slice(0, -1);
+    const suit = card.slice(-1);
+    return `/playing_card_images/${rankMap[rank]}_of_${suitMap[suit]}.svg`;
   };
 
   return (
@@ -137,6 +184,61 @@ function App() {
             <p>Game will start automatically when 3 players join!</p>
           </div>
         </div>
+      ) : gamePhase === "DEALING" ? (
+        <div className="game-container">
+          <header className="game-header">
+            <h1 className="game-title-small">斗地主 - {roomName}</h1>
+            <div className="game-status">
+              {faceUpInfo && (
+                <div className="faceup-info">
+                  <span>{faceUpInfo.player} drew </span>
+                  <img src={getCardImage(faceUpInfo.card)} alt={faceUpInfo.card} />
+                </div>
+              )}
+            </div>
+          </header>
+
+          <div className="players-section">
+            <h3>Players ({playerList.length}/3)</h3>
+            <div className="players-list">
+              {playerList.map((playerName, index) => (
+                <div
+                  key={index}
+                  className={`player-card ${playerName === name ? "current-player" : ""}`}
+                >
+                  <div className="player-avatar">{playerName.charAt(0).toUpperCase()}</div>
+                  <span className="player-name">{playerName}</span>
+                  {playerName === name && <span className="you-label">(You)</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="hand-section">
+            <h3>Your Hand</h3>
+            <div className="cards-container">
+              {hand.map((card, index) => (
+                <div key={index} className="playing-card">
+                  <img src={getCardImage(card)} alt={card} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {isChooser && (
+            <div className="game-actions">
+              <button className="action-button" onClick={() => decideBottom(true)}>
+                Take Cards
+              </button>
+              <button
+                className="action-button secondary"
+                onClick={() => decideBottom(false)}
+              >
+                Pass
+              </button>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="game-container">
           <header className="game-header">
@@ -173,7 +275,7 @@ function App() {
               {hand.length > 0 ? (
                 hand.map((card, index) => (
                   <div key={index} className="playing-card">
-                    <div className="card-content">{card}</div>
+                    <img src={getCardImage(card)} alt={card} />
                   </div>
                 ))
               ) : (
