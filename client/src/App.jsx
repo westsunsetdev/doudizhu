@@ -403,6 +403,7 @@ function App() {
                 ))}
               </div>
             </div>
+
           </div>
 
           <div className="game-actions">
