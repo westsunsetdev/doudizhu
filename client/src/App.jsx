@@ -30,6 +30,7 @@ function App() {
   const [lastPlayedBy, setLastPlayedBy] = useState("");
   const [currentTurnPlayer, setCurrentTurnPlayer] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isMyPickupTurn, setIsMyPickupTurn] = useState(false);
 
   useEffect(() => {
     // Request player list periodically when in lobby
@@ -39,9 +40,24 @@ function App() {
       }
     }, 2000);
 
+    socket.on("initialDeal", ({ hand }) => {
+      setHand(hand);
+      setGamePhase("PICKING");
+      setIsMyTurn(false);
+      setIsMyPickupTurn(false);
+      setSelectedCards([]);
+      setTableCards([]);
+    });
+
+    socket.on("pickupTurn", ({ playerName }) => {
+      setCurrentTurnPlayer(playerName);
+      setIsMyPickupTurn(playerName === name);
+    });
+
     socket.on("startGame", ({ hand, yourTurn }) => {
       setHand(hand);
       setIsMyTurn(yourTurn);
+      setIsMyPickupTurn(false);
       setGamePhase("PLAYING");
       setSelectedCards([]);
       setTableCards([]);
@@ -105,6 +121,8 @@ function App() {
 
     return () => {
       clearInterval(interval);
+      socket.off("initialDeal");
+      socket.off("pickupTurn");
       socket.off("startGame");
       socket.off("gameMessage");
       socket.off("playerList");
@@ -161,9 +179,19 @@ function App() {
 
   const handlePass = () => {
     if (!isMyTurn) return;
-    
+
     socket.emit("pass");
     setSelectedCards([]);
+  };
+
+  const handleTakeBottom = () => {
+    if (!isMyPickupTurn) return;
+    socket.emit('pickupDecision', { take: true });
+  };
+
+  const handlePassBottom = () => {
+    if (!isMyPickupTurn) return;
+    socket.emit('pickupDecision', { take: false });
   };
 
   const getCardValue = (card) => {
@@ -331,6 +359,111 @@ function App() {
             <p>Game will start automatically when 3 players join!</p>
           </div>
         </div>
+      ) : gamePhase === "PICKING" ? (
+        <div className="game-container">
+          <header className="game-header">
+            <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
+            <div className="game-status">
+              {message && <p className="status-message">{message}</p>}
+            </div>
+          </header>
+
+          <div className="players-section">
+            <div>
+              <h3>Players ({playerList.length}/3) - {currentTurnPlayer}'s decision</h3>
+              <div className="players-list">
+                {playerList.map((player, index) => (
+                  <div
+                    key={index}
+                    className={`player-card ${player.name === currentTurnPlayer ? "active-turn" : ""}`}
+                  >
+                    <div className="player-avatar">
+                      {player.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="player-name">{player.name}</span>
+                    {player.name === name && (
+                      <span className="you-label">(You)</span>
+                    )}
+                    <span className="card-count">{player.cardCount} cards</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="table-section">
+              <h3>Table</h3>
+              <div className="cards-container table-cards">
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="playing-card table-card">
+                    <img
+                      src="/playing_card_images/back.svg"
+                      alt="Face down card"
+                      className="card-image"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="game-actions">
+            <button
+              className="action-button"
+              disabled={!isMyPickupTurn}
+              onClick={handleTakeBottom}
+            >
+              Take Cards
+            </button>
+            <button
+              className="action-button secondary"
+              disabled={!isMyPickupTurn}
+              onClick={handlePassBottom}
+            >
+              Pass
+            </button>
+          </div>
+
+          <div className="hand-section">
+            <h3>Your Hand</h3>
+            <Droppable droppableId="hand" direction="horizontal">
+              {(provided) => (
+                <div
+                  className="cards-container"
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                >
+                  {hand.length > 0 ? (
+                    hand.map((card, index) => (
+                      <Draggable key={`${card}-${index}`} draggableId={`${card}-${index}`} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className={`playing-card ${snapshot.isDragging ? 'dragging' : ''}`}
+                          >
+                            <img
+                              src={getCardImage(card)}
+                              alt={card}
+                              className="card-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <div className="card-content fallback">{card}</div>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))
+                  ) : (
+                    <p className="no-cards">Waiting for cards...</p>
+                  )}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </div>
+        </div>
       ) : (
         <div className="game-container">
           <header className="game-header">
@@ -362,28 +495,32 @@ function App() {
               </div>
             </div>
 
-            {tableCards.length > 0 && (
-              <div className="table-section">
-                <h3>Table</h3>
-                <div className="cards-container table-cards">
-                  {tableCards.map((card, index) => (
-                    <div key={index} className="playing-card table-card">
-                      <img 
-                        src={getCardImage(card)} 
-                        alt={card}
-                        className="card-image"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'block';
-                        }}
-                      />
-                      <div className="card-content fallback">{card}</div>
-                    </div>
-                  ))}
-                  <p className="played-by">Played by {lastPlayedBy}</p>
-                </div>
+            <div className="table-section">
+              <h3>Table</h3>
+              <div className="cards-container table-cards">
+                {tableCards.length > 0 ? (
+                  <>
+                    {tableCards.map((card, index) => (
+                      <div key={index} className="playing-card table-card">
+                        <img
+                          src={getCardImage(card)}
+                          alt={card}
+                          className="card-image"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <div className="card-content fallback">{card}</div>
+                      </div>
+                    ))}
+                    <p className="played-by">Played by {lastPlayedBy}</p>
+                  </>
+                ) : (
+                  <p className="no-cards">No cards on table</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <div className="game-actions">

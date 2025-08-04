@@ -22,10 +22,18 @@ function shuffleDeck() {
   return deck;
 }
 
+function shuffleDeckWithFaceUp() {
+  const deck = shuffleDeck();
+  const half = Math.floor(deck.length / 2);
+  const faceUpIndex = Math.floor(Math.random() * half);
+  const faceUpCard = deck[faceUpIndex];
+  return { deck, faceUpIndex, faceUpCard };
+}
+
 function dealCards(deck, playerCount) {
   const hands = Array.from({ length: playerCount }, () => []);
   deck.forEach((card, i) => hands[i % playerCount].push(card));
   return hands;
 }
 
-module.exports = { shuffleDeck, dealCards };
+module.exports = { shuffleDeck, dealCards, shuffleDeckWithFaceUp };
