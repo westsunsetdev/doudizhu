@@ -7,10 +7,10 @@ const socket = io(
   // Comment out the version you're not using.
   
   // Replit version:
-  // 'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
+  'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
   
   // Cursor / local version:
-  `${window.location.protocol}//${window.location.hostname}:3001`,
+  // `${window.location.protocol}//${window.location.hostname}:3001`,
   {
     transports: ["websocket", "polling"],
     forceNew: true,
