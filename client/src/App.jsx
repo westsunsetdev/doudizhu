@@ -7,10 +7,10 @@ const socket = io(
   // Comment out the version you're not using.
   
   // Replit version:
-  // 'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
+  'https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/',
   
   // Cursor / local version:
-  `${window.location.protocol}//${window.location.hostname}:3001`,
+  // `${window.location.protocol}//${window.location.hostname}:3001`,
   {
     transports: ["websocket", "polling"],
     forceNew: true,
@@ -389,6 +389,21 @@ function App() {
                 ))}
               </div>
             </div>
+            <div className="table-section">
+              <h3>Table</h3>
+              <div className="cards-container table-cards">
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="playing-card table-card">
+                    <img
+                      src="/playing_card_images/back.svg"
+                      alt="Face down card"
+                      className="card-image"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
 
           <div className="game-actions">
@@ -481,28 +496,32 @@ function App() {
               </div>
             </div>
 
-            {tableCards.length > 0 && (
-              <div className="table-section">
-                <h3>Table</h3>
-                <div className="cards-container table-cards">
-                  {tableCards.map((card, index) => (
-                    <div key={index} className="playing-card table-card">
-                      <img 
-                        src={getCardImage(card)} 
-                        alt={card}
-                        className="card-image"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'block';
-                        }}
-                      />
-                      <div className="card-content fallback">{card}</div>
-                    </div>
-                  ))}
-                  <p className="played-by">Played by {lastPlayedBy}</p>
-                </div>
+            <div className="table-section">
+              <h3>Table</h3>
+              <div className="cards-container table-cards">
+                {tableCards.length > 0 ? (
+                  <>
+                    {tableCards.map((card, index) => (
+                      <div key={index} className="playing-card table-card">
+                        <img
+                          src={getCardImage(card)}
+                          alt={card}
+                          className="card-image"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <div className="card-content fallback">{card}</div>
+                      </div>
+                    ))}
+                    <p className="played-by">Played by {lastPlayedBy}</p>
+                  </>
+                ) : (
+                  <p className="no-cards">No cards on table</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <div className="game-actions">
