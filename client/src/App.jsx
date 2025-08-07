@@ -20,7 +20,7 @@ const socket = io(
 function App() {
   const [name, setName] = useState("");
   const [hand, setHand] = useState([]);
-  const [gamePhase, setGamePhase] = useState("LOGIN"); // LOGIN, LOBBY, PLAYING
+  const [gamePhase, setGamePhase] = useState("LOGIN"); // LOGIN, LOBBY, PICKING, PLAYING, ROUND_OVER
   const [message, setMessage] = useState("");
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [playerList, setPlayerList] = useState([]);
@@ -31,6 +31,7 @@ function App() {
   const [currentTurnPlayer, setCurrentTurnPlayer] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isMyPickupTurn, setIsMyPickupTurn] = useState(false);
+  const [wager, setWager] = useState({ landlord: 2, farmer: 1 });
 
   useEffect(() => {
     // Request player list periodically when in lobby
@@ -54,6 +55,10 @@ function App() {
       setIsMyPickupTurn(playerName === name);
     });
 
+    socket.on("handReveal", ({ hand }) => {
+      setHand(hand);
+    });
+
     socket.on("startGame", ({ hand, yourTurn }) => {
       setHand(hand);
       setIsMyTurn(yourTurn);
@@ -65,6 +70,15 @@ function App() {
     });
 
     socket.on("gameMessage", setMessage);
+
+    socket.on("roundOver", () => {
+      setGamePhase("ROUND_OVER");
+      setIsMyTurn(false);
+      setIsMyPickupTurn(false);
+      setTableCards([]);
+      setLastPlayedBy("");
+      setCurrentTurnPlayer("");
+    });
 
     socket.on("playerList", (data) => {
       console.log("Received player list:", data); // Debug log
@@ -119,12 +133,18 @@ function App() {
       setTimeout(() => setErrorMessage(""), 3000);
     });
 
+    socket.on("wagerUpdate", (data) => {
+      setWager(data);
+    });
+
     return () => {
       clearInterval(interval);
       socket.off("initialDeal");
       socket.off("pickupTurn");
+      socket.off("handReveal");
       socket.off("startGame");
       socket.off("gameMessage");
+      socket.off("roundOver");
       socket.off("playerList");
       socket.off("gamePaused");
       socket.off("gameReset");
@@ -133,6 +153,7 @@ function App() {
       socket.off("playerPassed");
       socket.off("turnUpdate");
       socket.off("invalidPlay");
+      socket.off("wagerUpdate");
     };
   }, [name]);
 
@@ -192,6 +213,10 @@ function App() {
   const handlePassBottom = () => {
     if (!isMyPickupTurn) return;
     socket.emit('pickupDecision', { take: false });
+  };
+
+  const handleStartNextGame = () => {
+    socket.emit('startNextGame');
   };
 
   const getCardValue = (card) => {
@@ -324,6 +349,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               <p className="status-message">Waiting for players to join...</p>
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -340,10 +366,8 @@ function App() {
                     {player.name.charAt(0).toUpperCase()}
                   </div>
                   <span className="player-name">{player.name}</span>
-                  {player.name === name && (
-                    <span className="you-label">(You)</span>
-                  )}
                   <span className="card-count">{player.cardCount} cards</span>
+                  <span className="points">{player.points} pts</span>
                 </div>
               ))}
               {[...Array(3 - playerList.length)].map((_, index) => (
@@ -365,6 +389,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -381,10 +406,8 @@ function App() {
                       {player.name.charAt(0).toUpperCase()}
                     </div>
                     <span className="player-name">{player.name}</span>
-                    {player.name === name && (
-                      <span className="you-label">(You)</span>
-                    )}
                     <span className="card-count">{player.cardCount} cards</span>
+                    <span className="points">{player.points} pts</span>
                   </div>
                 ))}
               </div>
@@ -465,12 +488,45 @@ function App() {
             </Droppable>
           </div>
         </div>
+      ) : gamePhase === "ROUND_OVER" ? (
+        <div className="game-container">
+          <header className="game-header">
+            <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
+            <div className="game-status">
+              {message && <p className="status-message">{message}</p>}
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
+            </div>
+          </header>
+
+          <div className="players-section">
+            <h3>Players ({playerList.length}/3)</h3>
+            <div className="players-list">
+              {playerList.map((player, index) => (
+                <div key={index} className="player-card">
+                  <div className="player-avatar">
+                    {player.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="player-name">{player.name}</span>
+                  <span className="card-count">{player.cardCount} cards</span>
+                  <span className="points">{player.points} pts</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="game-actions">
+            <button className="action-button" onClick={handleStartNextGame}>
+              Start Next Game
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="game-container">
           <header className="game-header">
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -487,10 +543,8 @@ function App() {
                       {player.name.charAt(0).toUpperCase()}
                     </div>
                     <span className="player-name">{player.name}</span>
-                    {player.name === name && (
-                      <span className="you-label">(You)</span>
-                    )}
                     <span className="card-count">{player.cardCount} cards</span>
+                    <span className="points">{player.points} pts</span>
                   </div>
                 ))}
               </div>

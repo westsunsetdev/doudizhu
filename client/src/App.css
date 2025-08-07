@@ -162,6 +162,12 @@ body {
   opacity: 0.9;
 }
 
+.wager-info {
+  font-size: 1.2rem;
+  color: #ffd700;
+  font-weight: bold;
+}
+
 .turn-indicator {
   font-size: 1.2rem;
   color: #ffd700;
@@ -258,19 +264,20 @@ body {
   margin-right: 10px;
 }
 
-.you-label {
-  font-size: 0.8rem;
-  color: #ffd700;
-  font-style: italic;
-  margin-right: 10px;
-}
-
 .card-count {
   font-size: 0.8rem;
   color: #fff;
   opacity: 0.8;
   font-weight: bold;
   margin-left: auto;
+}
+
+.points {
+  font-size: 0.8rem;
+  color: #fff;
+  opacity: 0.8;
+  font-weight: bold;
+  margin-left: 10px;
 }
 
 .lobby-info {
