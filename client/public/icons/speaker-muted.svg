@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-  <path d="M3 9v6h4l5 5V4L7 9H3z"/>
-  <path d="M16 7.82v8.36c1.39-.49 2.5-1.93 2.5-3.82s-1.11-3.33-2.5-3.82z" opacity="0.3"/>
-  <line x1="19" y1="5" x2="23" y2="9" stroke="currentColor" stroke-width="2"/>
-  <line x1="23" y1="5" x2="19" y2="9" stroke="currentColor" stroke-width="2"/>
-</svg>
