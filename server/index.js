@@ -44,7 +44,10 @@ let gameState = {
   initialPickUpIndex: 0,
   handsRevealed: false,
   landlordId: null,
-  wagerMultiplier: 1
+  wagerMultiplier: 1,
+  paused: false,
+  disconnectedPlayer: null,
+  pauseTimer: null
 };
 
 function getWager() {
@@ -58,12 +61,56 @@ function broadcastWager() {
   io.emit('wagerUpdate', getWager());
 }
 
+function getPlayerData() {
+  return {
+    players: gameState.playerOrder.map(id => ({
+      name: gameState.players[id].name,
+      cardCount: gameState.players[id].hand.length,
+      points: gameState.players[id].points
+    })),
+    roomName: ROOM_NAME,
+    landlord: gameState.landlordId ? gameState.players[gameState.landlordId].name : null
+  };
+}
+
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   socket.on('joinGame', (playerName) => {
     console.log(`${playerName} attempting to join. Current players: ${Object.keys(gameState.players).length}`);
-    
+
+    // Handle rejoining when game is paused
+    if (gameState.paused && gameState.disconnectedPlayer && gameState.disconnectedPlayer.name === playerName) {
+      const oldId = gameState.disconnectedPlayer.id;
+      const playerData = gameState.players[oldId];
+      gameState.players[socket.id] = playerData;
+      delete gameState.players[oldId];
+      const idx = gameState.playerOrder.indexOf(oldId);
+      if (idx !== -1) gameState.playerOrder[idx] = socket.id;
+      if (gameState.landlordId === oldId) gameState.landlordId = socket.id;
+      gameState.disconnectedPlayer = null;
+      gameState.paused = false;
+      if (gameState.pauseTimer) {
+        clearTimeout(gameState.pauseTimer);
+        gameState.pauseTimer = null;
+      }
+      const currentPlayerName = gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name;
+      socket.emit('rejoinState', {
+        hand: playerData.hand,
+        tableCards: gameState.tableCards,
+        lastPlayedBy: gameState.lastPlayedBy,
+        currentPlayer: currentPlayerName,
+        playerList: getPlayerData().players,
+        landlord: gameState.landlordId ? gameState.players[gameState.landlordId].name : null,
+        wager: getWager()
+      });
+      io.emit('playerList', getPlayerData());
+      broadcastWager();
+      io.emit('gameResumed', playerName);
+      io.emit('turnUpdate', { currentPlayer: currentPlayerName });
+      return;
+    }
+
     if (Object.keys(gameState.players).length >= MAX_PLAYERS) {
       socket.emit('roomFull', { roomName: ROOM_NAME });
       return;
@@ -72,22 +119,10 @@ io.on('connection', (socket) => {
     gameState.players[socket.id] = { name: playerName, hand: [], points: 0 };
     gameState.playerOrder.push(socket.id);
 
-    console.log('Current game state after join:', {
-      playerCount: Object.keys(gameState.players).length,
-      players: Object.values(gameState.players).map(p => p.name)
-    });
-
-    // Send updated player list to all clients
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
-    console.log('Broadcasting player list to all clients:', playerData);
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
     broadcastWager();
 
-    // Also send specifically to the joining user immediately
-    console.log('Sending player list to joining user:', playerData);
     socket.emit('playerList', playerData);
     socket.emit('wagerUpdate', getWager());
 
@@ -97,10 +132,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('requestPlayerList', () => {
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     console.log('Sending player list on request:', playerData);
     socket.emit('playerList', playerData);
     socket.emit('wagerUpdate', getWager());
@@ -109,52 +141,31 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
     const disconnectedPlayerName = gameState.players[socket.id]?.name || 'A player';
-    
-    // Remove the disconnected player from the game state
-    delete gameState.players[socket.id];
-    const playerIndex = gameState.playerOrder.indexOf(socket.id);
-    if (playerIndex > -1) {
-      gameState.playerOrder.splice(playerIndex, 1);
-    }
-    
-    // If game was in progress, reset it
-    if (gameState.started) {
-      gameState.started = false;
-      gameState.deck = [];
-      gameState.tableCards = [];
-      gameState.lastPlayedBy = "";
-      gameState.currentPlayerIndex = 0;
-      gameState.consecutivePasses = 0;
-      gameState.bottomCards = [];
-      gameState.faceUpCard = "";
-      gameState.pickUpIndex = 0;
-      gameState.pickUpAttempts = 0;
-      gameState.initialPickUpIndex = 0;
-      gameState.handsRevealed = false;
-      gameState.landlordId = null;
-      gameState.wagerMultiplier = 1;
-      broadcastWager();
 
-      
-      io.emit('gameReset', { message: `${disconnectedPlayerName} disconnected. Game reset.` });
-    }
-    
-    // Update remaining players
-    if (Object.keys(gameState.players).length > 0) {
-      const playerData = {
-        players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-        roomName: ROOM_NAME
-      };
+    if (gameState.started && gameState.players[socket.id]) {
+      gameState.paused = true;
+      gameState.disconnectedPlayer = { id: socket.id, name: disconnectedPlayerName };
+      io.emit('gamePaused', { player: disconnectedPlayerName, countdown: 60 });
+      io.emit('playerList', getPlayerData());
+    } else {
+      delete gameState.players[socket.id];
+      const playerIndex = gameState.playerOrder.indexOf(socket.id);
+      if (playerIndex > -1) {
+        gameState.playerOrder.splice(playerIndex, 1);
+      }
+      const playerData = getPlayerData();
       io.emit('playerList', playerData);
     }
-    
-    io.emit('gamePaused', disconnectedPlayerName);
   });
 
   socket.on('playCards', ({ cards }) => {
     const playerId = socket.id;
     const playerName = gameState.players[playerId]?.name;
-    
+
+    if (gameState.paused) {
+      return;
+    }
+
     if (!playerName || gameState.playerOrder[gameState.currentPlayerIndex] !== playerId) {
       return; // Not this player's turn
     }
@@ -199,10 +210,7 @@ io.on('connection', (socket) => {
     }
 
     // Update player list with current card counts
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     // Move to next turn
@@ -219,7 +227,11 @@ io.on('connection', (socket) => {
   socket.on('pass', () => {
     const playerId = socket.id;
     const playerName = gameState.players[playerId]?.name;
-    
+
+    if (gameState.paused) {
+      return;
+    }
+
     if (!playerName || gameState.playerOrder[gameState.currentPlayerIndex] !== playerId) {
       return; // Not this player's turn
     }
@@ -282,6 +294,47 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('resetGame', () => {
+    if (!gameState.paused) return;
+
+    if (gameState.disconnectedPlayer) {
+      const oldId = gameState.disconnectedPlayer.id;
+      delete gameState.players[oldId];
+      const idx = gameState.playerOrder.indexOf(oldId);
+      if (idx > -1) gameState.playerOrder.splice(idx, 1);
+      gameState.disconnectedPlayer = null;
+    }
+
+    Object.keys(gameState.players).forEach(id => {
+      gameState.players[id].hand = [];
+      gameState.players[id].points = 0;
+    });
+
+    gameState.started = false;
+    gameState.deck = [];
+    gameState.tableCards = [];
+    gameState.lastPlayedBy = "";
+    gameState.currentPlayerIndex = 0;
+    gameState.consecutivePasses = 0;
+    gameState.bottomCards = [];
+    gameState.faceUpCard = "";
+    gameState.pickUpIndex = 0;
+    gameState.pickUpAttempts = 0;
+    gameState.initialPickUpIndex = 0;
+    gameState.handsRevealed = false;
+    gameState.landlordId = null;
+    gameState.wagerMultiplier = 1;
+    gameState.paused = false;
+    if (gameState.pauseTimer) {
+      clearTimeout(gameState.pauseTimer);
+      gameState.pauseTimer = null;
+    }
+    broadcastWager();
+    const playerData = getPlayerData();
+    io.emit('gameReset', { message: 'Game has been reset.' });
+    io.emit('playerList', playerData);
+  });
+
   socket.on('startNextGame', () => {
     if (gameState.deck.length === 0 && Object.keys(gameState.players).length === MAX_PLAYERS && !gameState.started) {
       startGame();
@@ -311,14 +364,7 @@ io.on('connection', (socket) => {
       io.to(id).emit('handReveal', { hand: [] });
     });
 
-    const playerData = {
-      players: gameState.playerOrder.map(id => ({
-        name: gameState.players[id].name,
-        cardCount: gameState.players[id].hand.length,
-        points: gameState.players[id].points
-      })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     gameState.started = false;
@@ -333,7 +379,6 @@ io.on('connection', (socket) => {
     gameState.pickUpAttempts = 0;
     gameState.initialPickUpIndex = 0;
     gameState.handsRevealed = false;
-    gameState.landlordId = null;
     gameState.wagerMultiplier = 1;
     broadcastWager();
 
@@ -345,6 +390,7 @@ io.on('connection', (socket) => {
   function startGame() {
     gameState.started = false;
     gameState.wagerMultiplier = 1;
+    gameState.landlordId = null;
     const { deck, faceUpIndex, faceUpCard } = shuffleDeckWithFaceUp();
     gameState.deck = deck;
     gameState.faceUpCard = faceUpCard;
@@ -374,10 +420,7 @@ io.on('connection', (socket) => {
     const faceUpPlayerName = gameState.players[gameState.playerOrder[faceUpPlayerIndex]].name;
     io.emit('gameMessage', `${faceUpPlayerName} received the ${faceUpCard} face up`);
 
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     gameState.pickUpIndex = faceUpPlayerIndex;
@@ -424,7 +467,12 @@ io.on('connection', (socket) => {
     }
 
 
-    io.emit('gameMessage', `${playerName} ${forced ? 'was forced to pick up' : 'picked up'} the bottom cards (${pickedUp.join(', ')})`);
+    const publicMessage = `${playerName} ${forced ? 'was forced to pick up' : 'picked up'} the bottom cards`;
+    const cardDetails = ` (${pickedUp.join(', ')})`;
+    io.emit('gameMessage', gameState.handsRevealed ? publicMessage + cardDetails : publicMessage);
+    if (!gameState.handsRevealed) {
+      io.to(playerId).emit('gameMessage', publicMessage + cardDetails);
+    }
 
     gameState.playerOrder.forEach((id, idx) => {
       io.to(id).emit('startGame', {
@@ -433,10 +481,7 @@ io.on('connection', (socket) => {
       });
     });
 
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     const currentPlayerName = gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name;
