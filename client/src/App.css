@@ -162,6 +162,12 @@ body {
   opacity: 0.9;
 }
 
+.wager-info {
+  font-size: 1.2rem;
+  color: #ffd700;
+  font-weight: bold;
+}
+
 .turn-indicator {
   font-size: 1.2rem;
   color: #ffd700;
@@ -247,9 +253,18 @@ body {
   margin-right: 15px;
 }
 
+.player-avatar.landlord {
+  background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+  color: #fff;
+}
+
 .waiting-avatar {
   background: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.5);
+}
+
+.landlord-text {
+  color: #ee5a52;
 }
 
 .player-name {

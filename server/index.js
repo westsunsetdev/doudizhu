@@ -43,8 +43,32 @@ let gameState = {
   pickUpAttempts: 0,
   initialPickUpIndex: 0,
   handsRevealed: false,
-  landlordId: null
+  landlordId: null,
+  wagerMultiplier: 1
 };
+
+function getWager() {
+  return {
+    landlord: 2 * gameState.wagerMultiplier,
+    farmer: 1 * gameState.wagerMultiplier
+  };
+}
+
+function broadcastWager() {
+  io.emit('wagerUpdate', getWager());
+}
+
+function getPlayerData() {
+  return {
+    players: gameState.playerOrder.map(id => ({
+      name: gameState.players[id].name,
+      cardCount: gameState.players[id].hand.length,
+      points: gameState.players[id].points
+    })),
+    roomName: ROOM_NAME,
+    landlord: gameState.landlordId ? gameState.players[gameState.landlordId].name : null
+  };
+}
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -66,16 +90,15 @@ io.on('connection', (socket) => {
     });
 
     // Send updated player list to all clients
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     console.log('Broadcasting player list to all clients:', playerData);
     io.emit('playerList', playerData);
+    broadcastWager();
 
     // Also send specifically to the joining user immediately
     console.log('Sending player list to joining user:', playerData);
     socket.emit('playerList', playerData);
+    socket.emit('wagerUpdate', getWager());
 
     if (Object.keys(gameState.players).length === MAX_PLAYERS) {
       startGame();
@@ -83,12 +106,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('requestPlayerList', () => {
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     console.log('Sending player list on request:', playerData);
     socket.emit('playerList', playerData);
+    socket.emit('wagerUpdate', getWager());
   });
 
   socket.on('disconnect', () => {
@@ -117,16 +138,16 @@ io.on('connection', (socket) => {
       gameState.initialPickUpIndex = 0;
       gameState.handsRevealed = false;
       gameState.landlordId = null;
+      gameState.wagerMultiplier = 1;
+      broadcastWager();
+
       
       io.emit('gameReset', { message: `${disconnectedPlayerName} disconnected. Game reset.` });
     }
     
     // Update remaining players
     if (Object.keys(gameState.players).length > 0) {
-      const playerData = {
-        players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-        roomName: ROOM_NAME
-      };
+      const playerData = getPlayerData();
       io.emit('playerList', playerData);
     }
     
@@ -152,6 +173,8 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const playType = identifyCardType(cards);
+
     // Remove cards from player's hand
     const playerHand = gameState.players[playerId].hand;
     cards.forEach(card => {
@@ -160,6 +183,11 @@ io.on('connection', (socket) => {
         playerHand.splice(cardIndex, 1);
       }
     });
+
+    if (playType.type === 'bomb' || playType.type === 'rocket') {
+      gameState.wagerMultiplier *= 2;
+      broadcastWager();
+    }
 
     // Update game state
     gameState.tableCards = cards;
@@ -174,10 +202,7 @@ io.on('connection', (socket) => {
     }
 
     // Update player list with current card counts
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     // Move to next turn
@@ -266,15 +291,17 @@ io.on('connection', (socket) => {
   function endRound(winnerId) {
     const landlordId = gameState.landlordId;
     if (landlordId) {
+      const landlordPoints = 2 * gameState.wagerMultiplier;
+      const farmerPoints = 1 * gameState.wagerMultiplier;
       if (winnerId === landlordId) {
-        gameState.players[landlordId].points += 2;
+        gameState.players[landlordId].points += landlordPoints;
         gameState.playerOrder.forEach(id => {
-          if (id !== landlordId) gameState.players[id].points -= 1;
+          if (id !== landlordId) gameState.players[id].points -= farmerPoints;
         });
       } else {
-        gameState.players[landlordId].points -= 2;
+        gameState.players[landlordId].points -= landlordPoints;
         gameState.playerOrder.forEach(id => {
-          if (id !== landlordId) gameState.players[id].points += 1;
+          if (id !== landlordId) gameState.players[id].points += farmerPoints;
         });
       }
     }
@@ -284,14 +311,7 @@ io.on('connection', (socket) => {
       io.to(id).emit('handReveal', { hand: [] });
     });
 
-    const playerData = {
-      players: gameState.playerOrder.map(id => ({
-        name: gameState.players[id].name,
-        cardCount: gameState.players[id].hand.length,
-        points: gameState.players[id].points
-      })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     gameState.started = false;
@@ -306,7 +326,9 @@ io.on('connection', (socket) => {
     gameState.pickUpAttempts = 0;
     gameState.initialPickUpIndex = 0;
     gameState.handsRevealed = false;
-    gameState.landlordId = null;
+    gameState.wagerMultiplier = 1;
+    broadcastWager();
+
 
     const winnerName = gameState.players[winnerId].name;
     io.emit('roundOver', { winner: winnerName });
@@ -314,6 +336,8 @@ io.on('connection', (socket) => {
 
   function startGame() {
     gameState.started = false;
+    gameState.wagerMultiplier = 1;
+    gameState.landlordId = null;
     const { deck, faceUpIndex, faceUpCard } = shuffleDeckWithFaceUp();
     gameState.deck = deck;
     gameState.faceUpCard = faceUpCard;
@@ -343,10 +367,7 @@ io.on('connection', (socket) => {
     const faceUpPlayerName = gameState.players[gameState.playerOrder[faceUpPlayerIndex]].name;
     io.emit('gameMessage', `${faceUpPlayerName} received the ${faceUpCard} face up`);
 
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     gameState.pickUpIndex = faceUpPlayerIndex;
@@ -354,6 +375,7 @@ io.on('connection', (socket) => {
     gameState.pickUpAttempts = 0;
     gameState.handsRevealed = false;
     promptPickup();
+    broadcastWager();
   }
 
   function nextTurn() {
@@ -386,8 +408,18 @@ io.on('connection', (socket) => {
     gameState.currentPlayerIndex = playerIndex;
     gameState.started = true;
     gameState.landlordId = playerId;
+    if (!forced && !gameState.handsRevealed) {
+      gameState.wagerMultiplier *= 2;
+      broadcastWager();
+    }
 
-    io.emit('gameMessage', `${playerName} ${forced ? 'was forced to pick up' : 'picked up'} the bottom cards (${pickedUp.join(', ')})`);
+
+    const publicMessage = `${playerName} ${forced ? 'was forced to pick up' : 'picked up'} the bottom cards`;
+    const cardDetails = ` (${pickedUp.join(', ')})`;
+    io.emit('gameMessage', gameState.handsRevealed ? publicMessage + cardDetails : publicMessage);
+    if (!gameState.handsRevealed) {
+      io.to(playerId).emit('gameMessage', publicMessage + cardDetails);
+    }
 
     gameState.playerOrder.forEach((id, idx) => {
       io.to(id).emit('startGame', {
@@ -396,10 +428,7 @@ io.on('connection', (socket) => {
       });
     });
 
-    const playerData = {
-      players: Object.values(gameState.players).map(p => ({ name: p.name, cardCount: p.hand.length, points: p.points })),
-      roomName: ROOM_NAME
-    };
+    const playerData = getPlayerData();
     io.emit('playerList', playerData);
 
     const currentPlayerName = gameState.players[gameState.playerOrder[gameState.currentPlayerIndex]].name;
