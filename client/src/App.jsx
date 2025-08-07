@@ -32,6 +32,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isMyPickupTurn, setIsMyPickupTurn] = useState(false);
   const [wager, setWager] = useState({ landlord: 2, farmer: 1 });
+  const [landlord, setLandlord] = useState(null);
 
   useEffect(() => {
     // Request player list periodically when in lobby
@@ -75,8 +76,6 @@ function App() {
       setGamePhase("ROUND_OVER");
       setIsMyTurn(false);
       setIsMyPickupTurn(false);
-      setTableCards([]);
-      setLastPlayedBy("");
       setCurrentTurnPlayer("");
     });
 
@@ -86,6 +85,7 @@ function App() {
       console.log("Setting player list to:", data.players || []); // Debug log
       setPlayerList(data.players || []);
       setRoomName(data.roomName);
+      setLandlord(data.landlord || null);
     });
 
     socket.on("gamePaused", (player) => {
@@ -349,7 +349,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               <p className="status-message">Waiting for players to join...</p>
-              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
+              <p className="wager-info"><span className="landlord-text">Landlord {wager.landlord} pts</span>, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -362,7 +362,7 @@ function App() {
                   key={index}
                   className={`player-card ${player.name === name ? "current-player" : ""}`}
                 >
-                  <div className="player-avatar">
+                  <div className={`player-avatar ${player.name === landlord ? 'landlord' : ''}`}>
                     {player.name.charAt(0).toUpperCase()}
                   </div>
                   <span className="player-name">{player.name}</span>
@@ -389,7 +389,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
-              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
+              <p className="wager-info"><span className="landlord-text">Landlord {wager.landlord} pts</span>, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -402,7 +402,7 @@ function App() {
                     key={index}
                     className={`player-card ${player.name === currentTurnPlayer ? "active-turn" : ""}`}
                   >
-                    <div className="player-avatar">
+                    <div className={`player-avatar ${player.name === landlord ? 'landlord' : ''}`}>
                       {player.name.charAt(0).toUpperCase()}
                     </div>
                     <span className="player-name">{player.name}</span>
@@ -494,23 +494,52 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
-              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
+              <p className="wager-info"><span className="landlord-text">Landlord {wager.landlord} pts</span>, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
           <div className="players-section">
-            <h3>Players ({playerList.length}/3)</h3>
-            <div className="players-list">
-              {playerList.map((player, index) => (
-                <div key={index} className="player-card">
-                  <div className="player-avatar">
-                    {player.name.charAt(0).toUpperCase()}
+            <div>
+              <h3>Players ({playerList.length}/3)</h3>
+              <div className="players-list">
+                {playerList.map((player, index) => (
+                  <div key={index} className="player-card">
+                    <div className={`player-avatar ${player.name === landlord ? 'landlord' : ''}`}>
+                      {player.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="player-name">{player.name}</span>
+                    <span className="card-count">{player.cardCount} cards</span>
+                    <span className="points">{player.points} pts</span>
                   </div>
-                  <span className="player-name">{player.name}</span>
-                  <span className="card-count">{player.cardCount} cards</span>
-                  <span className="points">{player.points} pts</span>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+
+            <div className="table-section">
+              <h3>Table</h3>
+              <div className="cards-container table-cards">
+                {tableCards.length > 0 ? (
+                  <>
+                    {tableCards.map((card, index) => (
+                      <div key={index} className="playing-card table-card">
+                        <img
+                          src={getCardImage(card)}
+                          alt={card}
+                          className="card-image"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <div className="card-content fallback">{card}</div>
+                      </div>
+                    ))}
+                    <p className="played-by">Played by {lastPlayedBy}</p>
+                  </>
+                ) : (
+                  <p className="no-cards">No cards on table</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -526,7 +555,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
-              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
+              <p className="wager-info"><span className="landlord-text">Landlord {wager.landlord} pts</span>, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -539,7 +568,7 @@ function App() {
                     key={index}
                     className={`player-card ${player.name === currentTurnPlayer ? "active-turn" : ""}`}
                   >
-                    <div className="player-avatar">
+                    <div className={`player-avatar ${player.name === landlord ? 'landlord' : ''}`}>
                       {player.name.charAt(0).toUpperCase()}
                     </div>
                     <span className="player-name">{player.name}</span>
