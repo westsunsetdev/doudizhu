@@ -134,6 +134,7 @@ io.on('connection', (socket) => {
       gameState.landlordId = null;
       gameState.wagerMultiplier = 1;
       broadcastWager();
+
       
       io.emit('gameReset', { message: `${disconnectedPlayerName} disconnected. Game reset.` });
     }
@@ -336,6 +337,7 @@ io.on('connection', (socket) => {
     gameState.wagerMultiplier = 1;
     broadcastWager();
 
+
     const winnerName = gameState.players[winnerId].name;
     io.emit('roundOver', { winner: winnerName });
   }
@@ -420,6 +422,7 @@ io.on('connection', (socket) => {
       gameState.wagerMultiplier *= 2;
       broadcastWager();
     }
+
 
     io.emit('gameMessage', `${playerName} ${forced ? 'was forced to pick up' : 'picked up'} the bottom cards (${pickedUp.join(', ')})`);
 
