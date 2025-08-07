@@ -153,6 +153,7 @@ io.on('connection', (socket) => {
       if (playerIndex > -1) {
         gameState.playerOrder.splice(playerIndex, 1);
       }
+
       const playerData = getPlayerData();
       io.emit('playerList', playerData);
     }
