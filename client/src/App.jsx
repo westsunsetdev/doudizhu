@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import "./App.css";
@@ -33,9 +33,16 @@ function App() {
   const [isMyPickupTurn, setIsMyPickupTurn] = useState(false);
   const [wager, setWager] = useState({ landlord: 2, farmer: 1 });
   const [landlord, setLandlord] = useState(null);
-  const [pauseCountdown, setPauseCountdown] = useState(0);
-  const [pausedPlayer, setPausedPlayer] = useState("");
-  const pauseIntervalRef = useRef(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const audioRef = useRef(new Audio('/sounds/bell-notification-audio.mp3'));
+  const turnReminderRef = useRef(null);
+
+  const playSound = () => {
+    if (soundEnabled && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+    }
+  };
 
   useEffect(() => {
     // Request player list periodically when in lobby
@@ -163,6 +170,13 @@ function App() {
     socket.on("turnUpdate", ({ currentPlayer }) => {
       setIsMyTurn(currentPlayer === name);
       setCurrentTurnPlayer(currentPlayer);
+      playSound();
+      if (turnReminderRef.current) clearTimeout(turnReminderRef.current);
+      if (currentPlayer === name) {
+        turnReminderRef.current = setTimeout(() => {
+          playSound();
+        }, 15000);
+      }
     });
 
     socket.on("invalidPlay", ({ message }) => {
@@ -194,7 +208,9 @@ function App() {
       socket.off("turnUpdate");
       socket.off("invalidPlay");
       socket.off("wagerUpdate");
-      if (pauseIntervalRef.current) clearInterval(pauseIntervalRef.current);
+      
+      if (turnReminderRef.current) clearTimeout(turnReminderRef.current);
+
     };
   }, [name]);
 
@@ -230,7 +246,8 @@ function App() {
 
   const handlePlayCards = () => {
     if (!isMyTurn || selectedCards.length === 0) return;
-    
+
+    if (turnReminderRef.current) clearTimeout(turnReminderRef.current);
     const cardsToPlay = selectedCards.map(index => hand[index]);
     const newHand = hand.filter((_, index) => !selectedCards.includes(index));
     
@@ -242,6 +259,7 @@ function App() {
   const handlePass = () => {
     if (!isMyTurn) return;
 
+    if (turnReminderRef.current) clearTimeout(turnReminderRef.current);
     socket.emit("pass");
     setSelectedCards([]);
   };
@@ -360,6 +378,15 @@ function App() {
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="app">
         <div className="background-pattern"></div>
+        <div
+          className="audio-toggle"
+          onClick={() => setSoundEnabled(!soundEnabled)}
+        >
+          <img
+            src={soundEnabled ? '/icons/speaker-on.svg' : '/icons/speaker-muted.svg'}
+            alt={soundEnabled ? 'Disable sound' : 'Enable sound'}
+          />
+        </div>
 
       {gamePhase === "LOGIN" ? (
         <div className="login-container">
