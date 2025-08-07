@@ -246,8 +246,8 @@ function App() {
     const suit = card.match(/[♠♣♦♥]/)?.[0] || '';
     
     // Handle jokers
-    if (rank === 'JOKER-HIGH') return '/playing_card_images/black_joker.svg';
-    if (rank === 'JOKER-LOW') return '/playing_card_images/red_joker.svg';
+    if (rank === 'JOKER-HIGH') return '/playing_card_images/red_joker.svg';
+    if (rank === 'JOKER-LOW') return '/playing_card_images/black_joker.svg';
     
     // Map suits to their names
     const suitMap = {
