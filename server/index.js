@@ -43,8 +43,20 @@ let gameState = {
   pickUpAttempts: 0,
   initialPickUpIndex: 0,
   handsRevealed: false,
-  landlordId: null
+  landlordId: null,
+  wagerMultiplier: 1
 };
+
+function getWager() {
+  return {
+    landlord: 2 * gameState.wagerMultiplier,
+    farmer: 1 * gameState.wagerMultiplier
+  };
+}
+
+function broadcastWager() {
+  io.emit('wagerUpdate', getWager());
+}
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -72,10 +84,12 @@ io.on('connection', (socket) => {
     };
     console.log('Broadcasting player list to all clients:', playerData);
     io.emit('playerList', playerData);
+    broadcastWager();
 
     // Also send specifically to the joining user immediately
     console.log('Sending player list to joining user:', playerData);
     socket.emit('playerList', playerData);
+    socket.emit('wagerUpdate', getWager());
 
     if (Object.keys(gameState.players).length === MAX_PLAYERS) {
       startGame();
@@ -89,6 +103,7 @@ io.on('connection', (socket) => {
     };
     console.log('Sending player list on request:', playerData);
     socket.emit('playerList', playerData);
+    socket.emit('wagerUpdate', getWager());
   });
 
   socket.on('disconnect', () => {
@@ -117,6 +132,9 @@ io.on('connection', (socket) => {
       gameState.initialPickUpIndex = 0;
       gameState.handsRevealed = false;
       gameState.landlordId = null;
+      gameState.wagerMultiplier = 1;
+      broadcastWager();
+
       
       io.emit('gameReset', { message: `${disconnectedPlayerName} disconnected. Game reset.` });
     }
@@ -152,6 +170,8 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const playType = identifyCardType(cards);
+
     // Remove cards from player's hand
     const playerHand = gameState.players[playerId].hand;
     cards.forEach(card => {
@@ -160,6 +180,11 @@ io.on('connection', (socket) => {
         playerHand.splice(cardIndex, 1);
       }
     });
+
+    if (playType.type === 'bomb' || playType.type === 'rocket') {
+      gameState.wagerMultiplier *= 2;
+      broadcastWager();
+    }
 
     // Update game state
     gameState.tableCards = cards;
@@ -266,15 +291,17 @@ io.on('connection', (socket) => {
   function endRound(winnerId) {
     const landlordId = gameState.landlordId;
     if (landlordId) {
+      const landlordPoints = 2 * gameState.wagerMultiplier;
+      const farmerPoints = 1 * gameState.wagerMultiplier;
       if (winnerId === landlordId) {
-        gameState.players[landlordId].points += 2;
+        gameState.players[landlordId].points += landlordPoints;
         gameState.playerOrder.forEach(id => {
-          if (id !== landlordId) gameState.players[id].points -= 1;
+          if (id !== landlordId) gameState.players[id].points -= farmerPoints;
         });
       } else {
-        gameState.players[landlordId].points -= 2;
+        gameState.players[landlordId].points -= landlordPoints;
         gameState.playerOrder.forEach(id => {
-          if (id !== landlordId) gameState.players[id].points += 1;
+          if (id !== landlordId) gameState.players[id].points += farmerPoints;
         });
       }
     }
@@ -307,6 +334,9 @@ io.on('connection', (socket) => {
     gameState.initialPickUpIndex = 0;
     gameState.handsRevealed = false;
     gameState.landlordId = null;
+    gameState.wagerMultiplier = 1;
+    broadcastWager();
+
 
     const winnerName = gameState.players[winnerId].name;
     io.emit('roundOver', { winner: winnerName });
@@ -314,6 +344,7 @@ io.on('connection', (socket) => {
 
   function startGame() {
     gameState.started = false;
+    gameState.wagerMultiplier = 1;
     const { deck, faceUpIndex, faceUpCard } = shuffleDeckWithFaceUp();
     gameState.deck = deck;
     gameState.faceUpCard = faceUpCard;
@@ -354,6 +385,7 @@ io.on('connection', (socket) => {
     gameState.pickUpAttempts = 0;
     gameState.handsRevealed = false;
     promptPickup();
+    broadcastWager();
   }
 
   function nextTurn() {
@@ -386,6 +418,11 @@ io.on('connection', (socket) => {
     gameState.currentPlayerIndex = playerIndex;
     gameState.started = true;
     gameState.landlordId = playerId;
+    if (!forced && !gameState.handsRevealed) {
+      gameState.wagerMultiplier *= 2;
+      broadcastWager();
+    }
+
 
     io.emit('gameMessage', `${playerName} ${forced ? 'was forced to pick up' : 'picked up'} the bottom cards (${pickedUp.join(', ')})`);
 

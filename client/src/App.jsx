@@ -31,6 +31,7 @@ function App() {
   const [currentTurnPlayer, setCurrentTurnPlayer] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isMyPickupTurn, setIsMyPickupTurn] = useState(false);
+  const [wager, setWager] = useState({ landlord: 2, farmer: 1 });
 
   useEffect(() => {
     // Request player list periodically when in lobby
@@ -132,6 +133,10 @@ function App() {
       setTimeout(() => setErrorMessage(""), 3000);
     });
 
+    socket.on("wagerUpdate", (data) => {
+      setWager(data);
+    });
+
     return () => {
       clearInterval(interval);
       socket.off("initialDeal");
@@ -148,6 +153,7 @@ function App() {
       socket.off("playerPassed");
       socket.off("turnUpdate");
       socket.off("invalidPlay");
+      socket.off("wagerUpdate");
     };
   }, [name]);
 
@@ -343,6 +349,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               <p className="status-message">Waiting for players to join...</p>
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -382,6 +389,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -486,6 +494,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
@@ -517,6 +526,7 @@ function App() {
             <h1 className="game-title-small">Dou Dizhu - {roomName}</h1>
             <div className="game-status">
               {message && <p className="status-message">{message}</p>}
+              <p className="wager-info">Landlord {wager.landlord} pts, Farmers {wager.farmer} pts</p>
             </div>
           </header>
 
