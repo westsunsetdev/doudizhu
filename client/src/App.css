@@ -41,15 +41,86 @@ body {
 .audio-toggle {
   position: absolute;
   top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
+  right: 50px; /* leave space for info icon to its right (30px + 10px gap) */
+  width: 30px;
+  height: 30px;
   cursor: pointer;
 }
 
 .audio-toggle img {
   width: 100%;
   height: 100%;
+  display: block;
+}
+
+/* Information icon (always visible) */
+.info-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.info-toggle img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Rules popup modal (same color as Pass button) */
+.rules-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.2); /* same as .action-button.secondary */
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.3); /* same border as Pass */
+  border-radius: 12px;
+  padding: 20px 24px;
+  width: 90%;
+  max-width: 520px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  backdrop-filter: blur(6px);
+}
+
+.rules-modal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.rules-modal-title {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #ffd700;
+}
+
+.rules-modal-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.rules-modal-content {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.rules-list {
+  margin-top: 10px;
+  padding-left: 18px;
+}
+
+.rules-list li {
+  margin-bottom: 6px;
 }
 
 /* Login Screen Styles */

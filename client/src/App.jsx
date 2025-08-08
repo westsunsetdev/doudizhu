@@ -7,10 +7,10 @@ const socket = io(
   // Comment out the version you're not using.
 
   // Replit version:
-  "https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/",
+  // "https://5838ae2e-a904-45d9-b4ea-0cfac1ad43bb-00-12jnvqrv7ilzh.kirk.replit.dev/",
 
   // Cursor / local version:
-  // `${window.location.protocol}//${window.location.hostname}:3001`,
+  `${window.location.protocol}//${window.location.hostname}:3001`,
   {
     transports: ["websocket", "polling"],
     forceNew: true,
@@ -31,6 +31,7 @@ function App() {
   const [currentTurnPlayer, setCurrentTurnPlayer] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isMyPickupTurn, setIsMyPickupTurn] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [wager, setWager] = useState({ landlord: 2, farmer: 1 });
   const [landlord, setLandlord] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -406,6 +407,35 @@ function App() {
             alt={soundEnabled ? "Disable sound" : "Enable sound"}
           />
         </div>
+        <div
+          className="info-toggle"
+          onClick={() => setShowRules(true)}
+          title="Game rules"
+        >
+          <img src="/icons/information.svg" alt="Game rules" />
+        </div>
+
+        {showRules && (
+          <div className="rules-modal" role="dialog" aria-modal="true">
+            <header>
+              <div className="rules-modal-title">How to Play: Dou Dizhu</div>
+              <button className="rules-modal-close" onClick={() => setShowRules(false)} aria-label="Close rules">✕</button>
+            </header>
+            <div className="rules-modal-content">
+              <p>Be the first to play all your cards. On your turn, play a valid combination that beats the previous one, or pass. Rockets beat everything; bombs beat any non-rocket.</p>
+              <ul className="rules-list">
+                <li><strong>Single</strong>: any one card</li>
+                <li><strong>Pair</strong>: two of the same rank</li>
+                <li><strong>Triple</strong>: three of the same rank</li>
+                <li><strong>Triple with one</strong>: three of a kind plus one single</li>
+                <li><strong>Straight</strong>: 5+ consecutive singles (no 2 or jokers)</li>
+                <li><strong>Pair straight</strong>: 3+ consecutive pairs (no 2 or jokers)</li>
+                <li><strong>Bomb</strong>: four of a kind</li>
+                <li><strong>Rocket</strong>: both jokers (highest)</li>
+              </ul>
+            </div>
+          </div>
+        )}
 
         {gamePhase === "LOGIN" ? (
           <div className="login-container">
